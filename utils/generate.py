@@ -52,6 +52,21 @@ def _split_outputs(
     return generations
 
 
+def _make_chat_inputs(
+    model_name: str,
+    prompt_lists: list[list[str]],
+    prompt_list_seeds: list[int],
+    max_generation_len: int,
+) -> tuple[list[list[dict]], list[SamplingParams]]:
+    messages = []
+    sampling_params = []
+    for prompts, seed in zip(prompt_lists, prompt_list_seeds):
+        for prompt in prompts:
+            messages.append([{"role": "user", "content": prompt}])
+            sampling_params.append(SamplingParams(**MODEL_CONFIGS[model_name]["sampling"], max_tokens=max_generation_len, seed=seed))
+    return messages, sampling_params
+
+
 def generate(
     model_path: str,
     model_name: str,
@@ -61,15 +76,30 @@ def generate(
     max_num_sequences: int | None = None,
 ) -> list[dict]:
     model = _load_vllm(model_path, model_name, max_num_sequences)
-    messages = []
-    sampling_params = []
-    for prompts, seed in zip(prompt_lists, prompt_list_seeds):
-        for prompt in prompts:
-            messages.append([{"role": "user", "content": prompt}])
-            sampling_params.append(SamplingParams(**MODEL_CONFIGS[model_name]["sampling"], max_tokens=max_generation_len, seed=seed))
+    messages, sampling_params = _make_chat_inputs(model_name, prompt_lists, prompt_list_seeds, max_generation_len)
     with log_time(model_path):
         outputs = model.chat(messages, sampling_params, use_tqdm=True, chat_template_kwargs={"enable_thinking": True})
     return _split_outputs(outputs, model.get_tokenizer(), model_name, prompt_lists)
+
+
+def generate_without_thinking(
+    model_path: str,
+    model_name: str,
+    prompt_lists: list[list[str]],
+    prompt_list_seeds: list[int],
+    max_generation_len: int,
+) -> list[dict]:
+    model = _load_vllm(model_path, model_name, None)
+    messages, sampling_params = _make_chat_inputs(model_name, prompt_lists, prompt_list_seeds, max_generation_len)
+    with log_time(model_path):
+        outputs = model.chat(messages, sampling_params, use_tqdm=True, chat_template_kwargs={"enable_thinking": False})
+    generations = []
+    start = 0
+    for prompts in prompt_lists:
+        completions = [output.outputs[0] for output in outputs[start : start + len(prompts)]]
+        generations.append({"is_truncateds": [completion.finish_reason == "length" for completion in completions], "responses": [completion.text for completion in completions]})
+        start += len(prompts)
+    return generations
 
 
 def continue_generation(
