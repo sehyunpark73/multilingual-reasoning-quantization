@@ -1,3 +1,6 @@
+from utils.dataset import Benchmark
+
+
 def make_model_hub_path(
     method: str,
     model_name: str,
@@ -11,6 +14,14 @@ def make_model_hub_path(
     return f"{method}/{model_name}/calibration_languages={'_'.join(calibration_languages)},num_bits={num_bits},group_size={group_size},num_chunks={num_chunks}"
 
 
+def make_finetune_model_hub_path(
+    finetune_name: str,
+    model_name: str,
+    settings: dict[str, object],
+) -> str:
+    return f"{finetune_name}/{model_name}/{','.join(f'{name}={value}' for name, value in settings.items())}"
+
+
 def extract_model_name(
     model_hub_path: str,
 ) -> str:
@@ -19,7 +30,7 @@ def extract_model_name(
 
 
 def make_loss_result_dir(
-    benchmark: str,
+    benchmark: Benchmark,
 ) -> str:
     return f"loss/{benchmark}"
 

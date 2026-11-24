@@ -1,6 +1,6 @@
 import re
 
-from utils.dataset import MMLU_PROX_LITE_TEMPLATES
+from utils.dataset import MMLU_PROX_LITE_TEMPLATES, Benchmark
 
 MGSM_ANSWER_PREFIXES = {"en": "Answer", "zh": "答案", "ja": "答え", "sw": "Jibu", "te": "సమాధానం"}
 
@@ -28,10 +28,13 @@ def _parse_mmlu_prox_lite_prediction(
 def score_generation(
     generation: dict,
     answers: list[int | str],
-    benchmark: str,
+    benchmark: Benchmark,
     language: str,
 ) -> dict:
-    parse_prediction = _parse_mgsm_prediction if benchmark == "mgsm" else _parse_mmlu_prox_lite_prediction
+    if benchmark == "mgsm":
+        parse_prediction = _parse_mgsm_prediction
+    if benchmark == "mmlu_prox_lite":
+        parse_prediction = _parse_mmlu_prox_lite_prediction
     predictions = [None if response is None else parse_prediction(response, language) for response in generation["responses"]]
     is_corrects = [prediction == answer for prediction, answer in zip(predictions, answers)]
     return {"accuracy": sum(is_corrects) / len(is_corrects), "is_corrects": is_corrects, "predictions": predictions, **generation}

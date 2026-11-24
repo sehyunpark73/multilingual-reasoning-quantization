@@ -8,6 +8,7 @@ from safetensors.torch import save
 from torch import Tensor
 from transformers import PreTrainedModel
 
+from utils.dataset import Benchmark
 from utils.path import extract_model_name, make_loss_result_dir, make_model_hub_path, make_result_path, make_tensors_path
 
 REPO_NAME = "sehyunpark73/multilingual-reasoning-quantization"
@@ -69,7 +70,7 @@ def load_results(
 
 
 def load_bf16_results(
-    benchmark: str,
+    benchmark: Benchmark,
     model_name: str,
     max_generation_len: int,
     seeds: Sequence[int],

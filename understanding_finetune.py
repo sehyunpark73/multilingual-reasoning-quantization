@@ -1,7 +1,7 @@
 from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import partial
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from simple_parsing import parse
 import torch
@@ -9,27 +9,30 @@ from torch import Tensor
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase, set_seed
 
-from utils.dataset import LANGUAGES
+from utils.dataset import NON_EN_LANGUAGES
 from utils.hub import has_model, load_result, save_model
 from utils.log import log_time_and_memory
 from utils.model import MODEL_CONFIGS, find_linears, load_model
+from utils.path import make_finetune_model_hub_path
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.train import compute_ce_loss, compute_kl_loss, train
 from utils.understanding import extract_understanding
 
-TRAIN_LANGUAGES = [language for language in LANGUAGES if language != "en"]
+FINETUNE_NAME = "understanding_finetune"
 ON_POLICY_MAX_GENERATION_LENS = {"understanding": 512, "reasoning": 2048}
 
-type _Loss = Literal["ce", "kl", "hidden"]
-type _Sample = tuple[Tensor, Tensor, Tensor]
+_Loss: TypeAlias = Literal["ce", "kl", "hidden"]
+_ReasoningSource: TypeAlias = Literal["bf16_en", "on_policy"]
+_TrainPart: TypeAlias = Literal["understanding", "reasoning"]
+_Sample: TypeAlias = tuple[Tensor, Tensor, Tensor]
 
 
 @dataclass
 class Config:
     model_name: str = "google/gemma-4-E2B-it"
-    loss: Literal["ce", "kl", "hidden"] = "ce"
-    reasoning_source: Literal["bf16_en", "on_policy"] = "bf16_en"
-    train_part: Literal["understanding", "reasoning"] = "understanding"
+    loss: _Loss = "ce"
+    reasoning_source: _ReasoningSource = "bf16_en"
+    train_part: _TrainPart = "understanding"
     gsm8k_reasoning_hub_path: str = "gsm8k_reasoning/bf16/google/gemma-4-E2B-it/max_generation_len=16384,seed=0.json"
     num_samples: int = 4000
     learning_rate: float = 1e-5
@@ -42,20 +45,23 @@ class Config:
 def _make_samples(
     tokenizer: PreTrainedTokenizerBase,
     model_name: str,
-    bf16_result: dict,
-    train_part: str,
+    gsm8k_reasoning_result: dict,
+    train_part: _TrainPart,
 ) -> list[_Sample]:
     samples = []
-    for problem_index, en_reasoning in enumerate(bf16_result["en"]["reasonings"]):
+    for problem_index, en_reasoning in enumerate(gsm8k_reasoning_result["en"]["reasonings"]):
         en_understanding = extract_understanding(en_reasoning)
         if en_understanding is None:
             continue
-        bf16_prompt_ids = tokenize_prompt(tokenizer, bf16_result["en"]["prompts"][problem_index])
-        text_ids = tokenize_reasoning(tokenizer, model_name, en_understanding if train_part == "understanding" else en_reasoning)
-        for language in TRAIN_LANGUAGES:
-            if extract_understanding(bf16_result[language]["reasonings"][problem_index]) is None or not bf16_result[language]["is_corrects"][problem_index]:
+        bf16_prompt_ids = tokenize_prompt(tokenizer, gsm8k_reasoning_result["en"]["prompts"][problem_index])
+        if train_part == "understanding":
+            text_ids = tokenize_reasoning(tokenizer, model_name, en_understanding)
+        if train_part == "reasoning":
+            text_ids = tokenize_reasoning(tokenizer, model_name, en_reasoning)
+        for language in NON_EN_LANGUAGES:
+            if extract_understanding(gsm8k_reasoning_result[language]["reasonings"][problem_index]) is None or not gsm8k_reasoning_result[language]["is_corrects"][problem_index]:
                 continue
-            samples.append((tokenize_prompt(tokenizer, bf16_result[language]["prompts"][problem_index]), bf16_prompt_ids, text_ids))
+            samples.append((tokenize_prompt(tokenizer, gsm8k_reasoning_result[language]["prompts"][problem_index]), bf16_prompt_ids, text_ids))
     return samples
 
 
@@ -63,7 +69,7 @@ def _generate_on_policy_batch(
     model: PreTrainedModel,
     tokenizer: PreTrainedTokenizerBase,
     model_name: str,
-    train_part: str,
+    train_part: _TrainPart,
     batch: list[_Sample],
 ) -> list[_Sample]:
     sampling = MODEL_CONFIGS[model_name]["sampling"]
@@ -77,8 +83,12 @@ def _generate_on_policy_batch(
         reasoning_end_positions = (generated_ids == reasoning_end_id).nonzero()
         reasoning = tokenizer.decode(generated_ids[: reasoning_end_positions[0, 0]] if len(reasoning_end_positions) else generated_ids, skip_special_tokens=True)
         understanding = extract_understanding(reasoning)
-        if understanding is not None:
-            on_policy_batch.append((prompt_ids, bf16_prompt_ids, tokenize_reasoning(tokenizer, model_name, understanding if train_part == "understanding" else reasoning)))
+        if understanding is None:
+            continue
+        if train_part == "understanding":
+            on_policy_batch.append((prompt_ids, bf16_prompt_ids, tokenize_reasoning(tokenizer, model_name, understanding)))
+        if train_part == "reasoning":
+            on_policy_batch.append((prompt_ids, bf16_prompt_ids, tokenize_reasoning(tokenizer, model_name, reasoning)))
     return on_policy_batch
 
 
@@ -97,8 +107,8 @@ def _compute_losses(
     tokenizer: PreTrainedTokenizerBase,
     model_name: str,
     loss: _Loss,
-    reasoning_source: str,
-    train_part: str,
+    reasoning_source: _ReasoningSource,
+    train_part: _TrainPart,
     batch: list[_Sample],
 ) -> Iterator[Tensor]:
     if reasoning_source == "on_policy":
@@ -119,7 +129,7 @@ def _compute_losses(
 
 def main() -> None:
     config = parse(Config)
-    model_hub_path = f"finetune/{config.model_name}/loss={config.loss},reasoning_source={config.reasoning_source},train_part={config.train_part}"
+    model_hub_path = make_finetune_model_hub_path(FINETUNE_NAME, config.model_name, {"loss": config.loss, "reasoning_source": config.reasoning_source, "train_part": config.train_part})
 
     if has_model(model_hub_path):
         print(f"{model_hub_path} already finetuned")
@@ -131,8 +141,8 @@ def main() -> None:
     model.float()
     bf16_model = None if config.loss == "ce" else load_model(config.model_name)
 
-    bf16_result = load_result(config.gsm8k_reasoning_hub_path)
-    samples = _make_samples(tokenizer, config.model_name, bf16_result, config.train_part)[: config.num_samples]
+    gsm8k_reasoning_result = load_result(config.gsm8k_reasoning_hub_path)
+    samples = _make_samples(tokenizer, config.model_name, gsm8k_reasoning_result, config.train_part)[: config.num_samples]
     print(f"{model_hub_path} samples {len(samples)}")
 
     with log_time_and_memory(f"{model_hub_path} finetune"):

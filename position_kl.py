@@ -6,7 +6,7 @@ from torch import Tensor
 from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES, load_mgsm
-from utils.hub import download_model, load_bf16_results, save_tensors, has_tensors
+from utils.hub import download_model, has_tensors, load_bf16_results, save_tensors
 from utils.log import log_time_and_memory
 from utils.model import load_model
 from utils.path import extract_model_name

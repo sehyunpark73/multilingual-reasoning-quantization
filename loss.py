@@ -1,10 +1,9 @@
 from dataclasses import dataclass
 from statistics import mean
-from typing import Literal
 
 from simple_parsing import parse
 
-from utils.dataset import LANGUAGES, load_mgsm, load_mmlu_prox_lite
+from utils.dataset import LANGUAGES, Benchmark, load_mgsm, load_mmlu_prox_lite
 from utils.generate import generate
 from utils.hub import download_model, load_results, save_result
 from utils.path import extract_model_name, make_loss_result_dir
@@ -14,7 +13,7 @@ from utils.score import score_generation
 @dataclass
 class Config:
     model_hub_path: str = "bf16/google/gemma-4-E2B-it"
-    benchmark: Literal["mgsm", "mmlu_prox_lite"] = "mgsm"
+    benchmark: Benchmark = "mgsm"
     max_generation_len: int = 16384
     seeds: tuple[int, ...] = (0, 1, 2)
 
@@ -30,7 +29,10 @@ def main() -> None:
         print(f"{config.model_hub_path} already evaluated")
         return
 
-    problems = load_mgsm() if config.benchmark == "mgsm" else load_mmlu_prox_lite()
+    if config.benchmark == "mgsm":
+        problems = load_mgsm()
+    if config.benchmark == "mmlu_prox_lite":
+        problems = load_mmlu_prox_lite()
     prompt_lists = [problems[language]["prompts"] for _, language in missing_seed_languages]
     prompt_list_seeds = [seed for seed, _ in missing_seed_languages]
     generations = generate(download_model(config.model_hub_path), model_name, prompt_lists, prompt_list_seeds, config.max_generation_len)

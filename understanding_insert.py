@@ -64,7 +64,10 @@ def main() -> None:
     inserted_problem_indices = {}
     input_ids_lists = []
     for seed, language in missing_seed_languages:
-        bf16_language = language if config.understanding_language == "native" else "en"
+        if config.understanding_language == "native":
+            bf16_language = language
+        if config.understanding_language == "en":
+            bf16_language = "en"
         inserted_problem_indices[seed, language], input_ids_list = _tokenize_with_understandings(tokenizer, model_name, problems[language]["prompts"], bf16_results[seed][bf16_language]["reasonings"])
         input_ids_lists.append(input_ids_list)
 

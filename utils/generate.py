@@ -72,6 +72,21 @@ def _make_chat_inputs(
     return messages, sampling_params
 
 
+def _make_token_inputs(
+    model_name: str,
+    input_ids_lists: list[list[Tensor]],
+    input_ids_list_seeds: list[int],
+    max_generation_len: int,
+) -> tuple[list[dict], list[SamplingParams]]:
+    token_prompts = []
+    sampling_params = []
+    for input_ids_list, seed in zip(input_ids_lists, input_ids_list_seeds):
+        for input_ids in input_ids_list:
+            token_prompts.append({"prompt_token_ids": input_ids.tolist()})
+            sampling_params.append(SamplingParams(**MODEL_CONFIGS[model_name]["sampling"], max_tokens=max_generation_len, seed=seed))
+    return token_prompts, sampling_params
+
+
 def generate(
     model_path: str,
     model_name: str,
@@ -116,12 +131,7 @@ def continue_generation(
     is_reasoning_ids_returned: bool = False,
 ) -> list[dict]:
     model = _load_vllm(model_path, model_name, None)
-    token_prompts = []
-    sampling_params = []
-    for input_ids_list, seed in zip(input_ids_lists, input_ids_list_seeds):
-        for input_ids in input_ids_list:
-            token_prompts.append({"prompt_token_ids": input_ids.tolist()})
-            sampling_params.append(SamplingParams(**MODEL_CONFIGS[model_name]["sampling"], max_tokens=max_generation_len, seed=seed))
+    token_prompts, sampling_params = _make_token_inputs(model_name, input_ids_lists, input_ids_list_seeds, max_generation_len)
     with log_time(model_path):
         outputs = model.generate(token_prompts, sampling_params, use_tqdm=True)
     return _split_outputs(outputs, model.get_tokenizer(), model_name, input_ids_lists, is_reasoning_ids_returned)

@@ -1,26 +1,26 @@
 from dataclasses import dataclass
 from statistics import mean
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from simple_parsing import parse
-import torch
-from torch import Tensor
-from transformers import AutoTokenizer, PreTrainedTokenizerBase
+from transformers import AutoTokenizer
 
-from utils.dataset import LANGUAGES, load_mgsm
+from utils.dataset import LANGUAGES, NON_EN_LANGUAGES, load_mgsm
 from utils.generate import continue_generation
 from utils.hub import download_model, load_result, load_results, save_result
 from utils.path import extract_model_name
 from utils.score import score_generation
-from utils.tokenize import tokenize_en_question, tokenize_prompt
+from utils.tokenize import tokenize_with_en_questions
 
 RESULT_DIRS = {"mgsm": "en_question_insert/mgsm", "bf16_translation": "bf16_translation_insert/mgsm"}
+
+_EnQuestion: TypeAlias = Literal["mgsm", "bf16_translation"]
 
 
 @dataclass
 class Config:
     model_hub_path: str = "bf16/google/gemma-4-E2B-it"
-    en_question: Literal["mgsm", "bf16_translation"] = "mgsm"
+    en_question: _EnQuestion = "mgsm"
     translation_hub_path: str = "mgsm_translation/bf16/google/gemma-4-E2B-it/max_generation_len=512,seed=0.json"
     max_generation_len: int = 16384
     seeds: tuple[int, ...] = (0, 1, 2)
@@ -28,28 +28,17 @@ class Config:
 
 def _load_en_questions(
     problems: dict[str, dict[str, list]],
-    en_question: str,
+    en_question: _EnQuestion,
     translation_hub_path: str,
 ) -> dict[str, list[str]]:
     if en_question == "mgsm":
         return {language: problems["en"]["questions"] for language in LANGUAGES}
-    translation_result = load_result(translation_hub_path)
-    en_questions = {"en": problems["en"]["questions"]}
-    for language in translation_result:
-        en_questions[language] = translation_result[language]["en_questions"]
-    return en_questions
-
-
-def _tokenize_with_en_questions(
-    tokenizer: PreTrainedTokenizerBase,
-    model_name: str,
-    prompts: list[str],
-    en_questions: list[str],
-) -> list[Tensor]:
-    input_ids_list = []
-    for prompt, en_question in zip(prompts, en_questions):
-        input_ids_list.append(torch.cat([tokenize_prompt(tokenizer, prompt), tokenize_en_question(tokenizer, model_name, en_question)]))
-    return input_ids_list
+    if en_question == "bf16_translation":
+        translation_result = load_result(translation_hub_path)
+        en_questions = {"en": problems["en"]["questions"]}
+        for language in NON_EN_LANGUAGES:
+            en_questions[language] = translation_result[language]["en_questions"]
+        return en_questions
 
 
 def main() -> None:
@@ -66,7 +55,7 @@ def main() -> None:
     problems = load_mgsm()
     en_questions = _load_en_questions(problems, config.en_question, config.translation_hub_path)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    input_ids_lists_by_language = {language: _tokenize_with_en_questions(tokenizer, model_name, problems[language]["prompts"], en_questions[language]) for language in LANGUAGES}
+    input_ids_lists_by_language = {language: tokenize_with_en_questions(tokenizer, model_name, problems[language]["prompts"], en_questions[language]) for language in LANGUAGES}
 
     missing_seed_languages = [(seed, language) for seed in missing_seeds for language in LANGUAGES]
     input_ids_lists = [input_ids_lists_by_language[language] for _, language in missing_seed_languages]
