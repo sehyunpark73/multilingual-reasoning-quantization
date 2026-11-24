@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Literal
 
 from simple_parsing import parse
 import torch
@@ -7,9 +6,10 @@ from torch import Tensor
 from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES, load_mgsm
-from utils.hub import download_model, load_bf16_results, make_hub_path, save_tensors, tensors_exist
+from utils.hub import download_model, load_bf16_results, save_tensors, has_tensors
 from utils.log import log_time_and_memory
 from utils.model import load_model
+from utils.path import extract_model_name
 from utils.score import find_solved_problem_indices
 from utils.stats import compute_reasoning_kls
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
@@ -19,12 +19,7 @@ RESULT_DIR = "position_kl/mgsm"
 
 @dataclass
 class Config:
-    model_name: str = "google/gemma-4-E2B-it"
-    method: Literal["gptq", "awq", "nf4", "mxfp4"] = "mxfp4"
-    calibration_languages: tuple[Literal["en", "zh", "ja", "sw", "te"], ...] = ("en",)
-    num_bits: int = 4
-    group_size: int = 128
-    num_chunks: int = 128
+    model_hub_path: str = "mxfp4/google/gemma-4-E2B-it"
     logit_batch_len: int = 2048
     max_generation_len: int = 16384
     reasoning_seed: int = 0
@@ -54,25 +49,26 @@ def _compute_problem_kls(
 @torch.no_grad()
 def main() -> None:
     config = parse(Config)
-    hub_path = make_hub_path(config.method, config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks)
-    if tensors_exist(RESULT_DIR, hub_path, config.max_generation_len, config.reasoning_seed):
-        print(f"{hub_path} already evaluated")
+    model_name = extract_model_name(config.model_hub_path)
+
+    if has_tensors(RESULT_DIR, config.model_hub_path, config.max_generation_len, config.reasoning_seed):
+        print(f"{config.model_hub_path} already evaluated")
         return
 
     problems = load_mgsm()
-    bf16_results = load_bf16_results(config.model_name, config.max_generation_len, config.bf16_seeds)
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-    bf16_model = load_model(config.model_name)
-    quantized_model = load_model(download_model(hub_path, config.model_name))
+    bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, config.bf16_seeds)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+    bf16_model = load_model(model_name)
+    quantized_model = load_model(download_model(config.model_hub_path))
 
     tensors = {}
     for language in LANGUAGES:
         solved_problem_indices = find_solved_problem_indices(bf16_results, language)
-        with log_time_and_memory(f"{hub_path} {language} {len(solved_problem_indices)} problems"):
-            tensors[f"{language}/kls"], tensors[f"{language}/token_problem_indices"] = _compute_problem_kls(bf16_model, quantized_model, tokenizer, config.model_name, problems[language]["prompts"], bf16_results[config.reasoning_seed][language]["reasonings"], solved_problem_indices, config.logit_batch_len)
-        print(f"{hub_path} {language} kl {tensors[f'{language}/kls'].mean():.4f}")
+        with log_time_and_memory(f"{config.model_hub_path} {language} {len(solved_problem_indices)} problems"):
+            tensors[f"{language}/kls"], tensors[f"{language}/token_problem_indices"] = _compute_problem_kls(bf16_model, quantized_model, tokenizer, model_name, problems[language]["prompts"], bf16_results[config.reasoning_seed][language]["reasonings"], solved_problem_indices, config.logit_batch_len)
+        print(f"{config.model_hub_path} {language} kl {tensors[f'{language}/kls'].mean():.4f}")
 
-    save_tensors(RESULT_DIR, hub_path, config.max_generation_len, config.reasoning_seed, tensors)
+    save_tensors(RESULT_DIR, config.model_hub_path, config.max_generation_len, config.reasoning_seed, tensors)
 
 
 if __name__ == "__main__":

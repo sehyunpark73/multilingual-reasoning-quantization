@@ -10,9 +10,10 @@ from torch.nn import Linear, Module
 
 from utils.dataset import load_wikipedia
 from utils.grid import compute_grid, round_to_grid
-from utils.hub import make_hub_path, save_model
+from utils.hub import save_model
 from utils.log import log_time_and_memory
 from utils.model import capture_layer_inputs, find_linears, load_model
+from utils.path import make_model_hub_path
 from utils.stats import compute_abs_mean_and_hessian
 
 MIN_SMOOTH = 1e-4
@@ -94,7 +95,6 @@ def _find_smooth(
             error += (unquantized_output - quantized_output).float().pow(2).mean().item()
         if error < best_error:
             best_error, best_smooth = error, smooth
-
     for linear, unquantized_weight in zip(linears, unquantized_weights):
         linear.weight.copy_(unquantized_weight)
     return best_smooth
@@ -146,7 +146,7 @@ def main() -> None:
                     clip = _find_clip(linear.weight, smooth, hessian, config.num_bits, config.group_size, config.num_search_steps, config.max_shrink)
                     linear.weight.copy_(_quantize_weight(linear.weight, smooth, clip, config.num_bits, config.group_size))
 
-    save_model(make_hub_path("awq", config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks), model)
+    save_model(make_model_hub_path("awq", config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks), model)
 
 
 if __name__ == "__main__":

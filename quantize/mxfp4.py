@@ -4,8 +4,9 @@ from simple_parsing import parse
 import torch
 from torch import Tensor
 
-from utils.hub import make_hub_path, save_model
+from utils.hub import save_model
 from utils.model import find_linears, load_model
+from utils.path import make_model_hub_path
 
 MXFP4_GROUP_SIZE = 32
 MIN_WEIGHT_MAX = 2**-125
@@ -35,7 +36,7 @@ def main() -> None:
     model = load_model(config.model_name)
     for linear in find_linears(model.model.language_model.layers):
         linear.weight.copy_(_quantize_weight(linear.weight))
-    save_model(make_hub_path("mxfp4", config.model_name), model)
+    save_model(make_model_hub_path("mxfp4", config.model_name), model)
 
 
 if __name__ == "__main__":

@@ -39,12 +39,12 @@ def _split_outputs(
     generations = []
     start = 0
     for input_list in input_lists:
-        generation = {"reasoning_lens": [], "truncateds": [], "reasonings": [], "responses": []}
+        generation = {"reasoning_lens": [], "is_truncateds": [], "reasonings": [], "responses": []}
         for output in outputs[start : start + len(input_list)]:
             completion = output.outputs[0]
             reasoning_len, reasoning, response = _split_completion(completion, tokenizer, reasoning_end_id)
             generation["reasoning_lens"].append(reasoning_len)
-            generation["truncateds"].append(completion.finish_reason == "length")
+            generation["is_truncateds"].append(completion.finish_reason == "length")
             generation["reasonings"].append(reasoning)
             generation["responses"].append(response)
         generations.append(generation)
@@ -78,9 +78,8 @@ def continue_generation(
     input_ids_lists: list[list[Tensor]],
     input_ids_list_seeds: list[int],
     max_generation_len: int,
-    max_num_sequences: int | None = None,
 ) -> list[dict]:
-    model = _load_vllm(model_path, model_name, max_num_sequences)
+    model = _load_vllm(model_path, model_name, None)
     token_prompts = []
     sampling_params = []
     for input_ids_list, seed in zip(input_ids_lists, input_ids_list_seeds):

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from statistics import mean
-from typing import Literal
 
 from simple_parsing import parse
 import torch
@@ -9,7 +8,8 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
-from utils.hub import download_model, load_bf16_results, load_results, make_hub_path, save_result
+from utils.hub import download_model, load_bf16_results, load_results, save_result
+from utils.path import extract_model_name
 from utils.score import score_generation
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.understanding import extract_understanding
@@ -20,12 +20,7 @@ LENGTH_RATIOS = [0.5, 0.75, 1, 1.5, 2]
 
 @dataclass
 class Config:
-    model_name: str = "google/gemma-4-E2B-it"
-    method: Literal["gptq", "awq", "nf4", "mxfp4"] = "mxfp4"
-    calibration_languages: tuple[Literal["en", "zh", "ja", "sw", "te"], ...] = ("en",)
-    num_bits: int = 4
-    group_size: int = 128
-    num_chunks: int = 128
+    model_hub_path: str = "mxfp4/google/gemma-4-E2B-it"
     max_generation_len: int = 16384
     seeds: tuple[int, ...] = (0, 1, 2)
 
@@ -55,23 +50,24 @@ def _tokenize_with_reasoning_prefixes(
 
 def main() -> None:
     config = parse(Config)
-    hub_path = make_hub_path(config.method, config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks)
+    model_name = extract_model_name(config.model_hub_path)
     result_dirs = {length_ratio: f"{RESULT_DIR}/length_ratio={length_ratio}" for length_ratio in LENGTH_RATIOS}
 
-    results_by_ratio = {length_ratio: load_results(result_dirs[length_ratio], hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
+    results_by_ratio = {length_ratio: load_results(result_dirs[length_ratio], config.model_hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
     missing_seed_ratios = []
     for seed in config.seeds:
         for length_ratio in LENGTH_RATIOS:
             if not results_by_ratio[length_ratio][seed]:
                 missing_seed_ratios.append((seed, length_ratio))
     if not missing_seed_ratios:
-        print(f"{hub_path} already evaluated")
+        print(f"{config.model_hub_path} already evaluated")
         return
 
     problems = load_mgsm()
     missing_seeds = sorted({seed for seed, _ in missing_seed_ratios})
-    bf16_results = load_bf16_results(config.model_name, config.max_generation_len, missing_seeds)
-    tokenizer = AutoTokenizer.from_pretrained(config.model_name)
+    bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, missing_seeds)
+    tokenizer = AutoTokenizer.from_pretrained(model_name)
+
     missing_seed_ratio_languages = []
     for seed, length_ratio in missing_seed_ratios:
         for language in LANGUAGES:
@@ -79,19 +75,19 @@ def main() -> None:
     inserted_problem_indices = {}
     input_ids_lists = []
     for seed, length_ratio, language in missing_seed_ratio_languages:
-        inserted_problem_indices[seed, length_ratio, language], input_ids_list = _tokenize_with_reasoning_prefixes(tokenizer, config.model_name, problems[language]["prompts"], bf16_results[seed][language]["reasonings"], length_ratio)
+        inserted_problem_indices[seed, length_ratio, language], input_ids_list = _tokenize_with_reasoning_prefixes(tokenizer, model_name, problems[language]["prompts"], bf16_results[seed][language]["reasonings"], length_ratio)
         input_ids_lists.append(input_ids_list)
 
     input_ids_list_seeds = [seed for seed, _, _ in missing_seed_ratio_languages]
-    generations = continue_generation(download_model(hub_path, config.model_name), config.model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
+    generations = continue_generation(download_model(config.model_hub_path), model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
 
     for (seed, length_ratio, language), generation in zip(missing_seed_ratio_languages, generations):
         answers = [problems[language]["answers"][problem_index] for problem_index in inserted_problem_indices[seed, length_ratio, language]]
         results_by_ratio[length_ratio][seed][language] = {"inserted_problem_indices": inserted_problem_indices[seed, length_ratio, language], **score_generation(generation, answers, "mgsm", language)}
-        print(f"{hub_path} seed {seed} length ratio {length_ratio} {language} accuracy {results_by_ratio[length_ratio][seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} inserted {len(answers)} of {len(problems[language]['prompts'])}")
+        print(f"{config.model_hub_path} seed {seed} length ratio {length_ratio} {language} accuracy {results_by_ratio[length_ratio][seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} inserted {len(answers)} of {len(problems[language]['prompts'])}")
 
     for seed, length_ratio in missing_seed_ratios:
-        save_result(result_dirs[length_ratio], hub_path, config.max_generation_len, seed, results_by_ratio[length_ratio][seed])
+        save_result(result_dirs[length_ratio], config.model_hub_path, config.max_generation_len, seed, results_by_ratio[length_ratio][seed])
 
 
 if __name__ == "__main__":

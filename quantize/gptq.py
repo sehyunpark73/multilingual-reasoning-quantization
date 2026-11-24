@@ -7,9 +7,10 @@ from torch import Tensor
 
 from utils.dataset import load_wikipedia
 from utils.grid import compute_grid, round_to_grid
-from utils.hub import make_hub_path, save_model
+from utils.hub import save_model
 from utils.log import log_time_and_memory
 from utils.model import capture_layer_inputs, find_linears, load_model
+from utils.path import make_model_hub_path
 from utils.stats import compute_abs_mean_and_hessian
 
 
@@ -38,7 +39,6 @@ def _quantize_weight(
     is_zero_diagonal = hessian.diagonal() == 0
     weight[:, is_zero_diagonal] = 0
     hessian.diagonal()[is_zero_diagonal] = 1
-
     hessian.diagonal().add_(damp_ratio * hessian.diagonal().mean())
     hessian_inverse = torch.linalg.cholesky(torch.cholesky_inverse(torch.linalg.cholesky(hessian)), upper=True)
 
@@ -52,11 +52,9 @@ def _quantize_weight(
             group_index = column_index // group_size
             if column_index % group_size == 0:
                 scale[:, group_index], zero[:, group_index] = compute_grid(weight[:, column_index : column_index + group_size], num_bits)
-
             quantized_weight[:, column_index] = round_to_grid(weight[:, column_index], scale[:, group_index], zero[:, group_index], num_bits)
             error[:, column_index - block_start] = (weight[:, column_index] - quantized_weight[:, column_index]) / hessian_inverse[column_index, column_index]
             weight[:, column_index:block_end] -= torch.outer(error[:, column_index - block_start], hessian_inverse[column_index, column_index:block_end])
-
         weight[:, block_end:] -= error[:, : block_end - block_start] @ hessian_inverse[block_start:block_end, block_end:]
     return quantized_weight
 
@@ -75,7 +73,7 @@ def main() -> None:
                 _, hessian = compute_abs_mean_and_hessian(layer, linear, layer_inputs)
                 linear.weight.copy_(_quantize_weight(linear.weight, hessian, config.num_bits, config.group_size, config.block_size, config.damp_ratio))
 
-    save_model(make_hub_path("gptq", config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks), model)
+    save_model(make_model_hub_path("gptq", config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks), model)
 
 
 if __name__ == "__main__":

@@ -33,13 +33,13 @@ def score_generation(
 ) -> dict:
     parse_prediction = _parse_mgsm_prediction if benchmark == "mgsm" else _parse_mmlu_prox_lite_prediction
     predictions = [None if response is None else parse_prediction(response, language) for response in generation["responses"]]
-    corrects = [prediction == answer for prediction, answer in zip(predictions, answers)]
-    return {"accuracy": sum(corrects) / len(corrects), "corrects": corrects, "predictions": predictions, **generation}
+    is_corrects = [prediction == answer for prediction, answer in zip(predictions, answers)]
+    return {"accuracy": sum(is_corrects) / len(is_corrects), "is_corrects": is_corrects, "predictions": predictions, **generation}
 
 
 def find_solved_problem_indices(
     results: dict[int, dict],
     language: str,
 ) -> list[int]:
-    corrects_by_seed = [result[language]["corrects"] for result in results.values()]
-    return [problem_index for problem_index, corrects in enumerate(zip(*corrects_by_seed)) if all(corrects)]
+    is_corrects_by_seed = [result[language]["is_corrects"] for result in results.values()]
+    return [problem_index for problem_index, is_corrects in enumerate(zip(*is_corrects_by_seed)) if all(is_corrects)]
