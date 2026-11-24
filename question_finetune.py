@@ -76,14 +76,16 @@ def main() -> None:
     if has_model(model_hub_path):
         print(f"{model_hub_path} already finetuned")
         return
-    if any(checkpoint % config.batch_size for checkpoint in config.checkpoint_num_trained_samples):
+    if any(checkpoint_num_trained_sample % config.batch_size for checkpoint_num_trained_sample in config.checkpoint_num_trained_samples):
         raise ValueError(f"checkpoint_num_trained_samples must be multiples of batch_size {config.batch_size}")
 
     set_seed(config.train_seed)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
     model = load_model(config.model_name)
     model.float()
-    bf16_model = None if config.loss == "ce" else load_model(config.model_name)
+    bf16_model = None
+    if config.loss == "ce_kl":
+        bf16_model = load_model(config.model_name)
 
     gsm8k_en_question_insert_reasoning_result = load_result(config.gsm8k_en_question_insert_reasoning_hub_path)
     all_samples = make_en_question_samples(tokenizer, config.model_name, gsm8k_en_question_insert_reasoning_result)
@@ -93,7 +95,7 @@ def main() -> None:
     with log_time_and_memory(f"{model_hub_path} finetune"):
         weights = [linear.weight for linear in find_linears(model.model.language_model.layers)]
         save_checkpoint = partial(_save_checkpoint, model, weights, config.model_name, config.loss, config.num_samples)
-        train(weights, samples, partial(_compute_losses, model, bf16_model, config.loss), config.learning_rate, config.num_epochs, config.warmup_ratio, config.batch_size, (*config.checkpoint_num_trained_samples, num_trained_samples), save_checkpoint)
+        train(weights, samples, partial(_compute_losses, model, bf16_model, config.loss), config.learning_rate, config.num_epochs, config.warmup_ratio, config.batch_size, config.checkpoint_num_trained_samples + (num_trained_samples,), save_checkpoint)
 
 
 if __name__ == "__main__":

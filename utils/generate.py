@@ -117,8 +117,12 @@ def generate_without_thinking(
     generations = []
     start = 0
     for prompts in prompt_lists:
-        completions = [output.outputs[0] for output in outputs[start : start + len(prompts)]]
-        generations.append({"is_truncateds": [completion.finish_reason == "length" for completion in completions], "responses": [completion.text for completion in completions]})
+        generation = {"is_truncateds": [], "responses": []}
+        for output in outputs[start : start + len(prompts)]:
+            completion = output.outputs[0]
+            generation["is_truncateds"].append(completion.finish_reason == "length")
+            generation["responses"].append(completion.text)
+        generations.append(generation)
         start += len(prompts)
     return generations
 

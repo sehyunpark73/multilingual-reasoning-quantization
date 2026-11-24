@@ -11,6 +11,7 @@ from utils.score import find_solved_problem_indices
 
 RESULT_DIR = "error_types/mgsm"
 ERROR_TYPES = ["fact", "relation", "target", "doubt", "arithmetic", "other"]
+ERROR_TYPE_PATTERN = r"type:\s*(" + "|".join(ERROR_TYPES) + r")\b"
 JUDGE_PROMPT = """A small model solved a math word problem and got it wrong. Find the first line where its reasoning goes wrong, and say what kind of error it is.
 
 Problem in English, which is the true meaning:
@@ -89,10 +90,17 @@ def _parse_judgments(
     error_lines = []
     error_types = []
     for response in responses:
-        line_matches = re.findall(r"line:\s*(\d+)", response or "")
-        type_matches = re.findall(rf"type:\s*({'|'.join(ERROR_TYPES)})\b", response or "")
-        error_lines.append(int(line_matches[-1]) if line_matches else None)
-        error_types.append(type_matches[-1] if type_matches else None)
+        error_line = None
+        error_type = None
+        if response is not None:
+            line_matches = re.findall(r"line:\s*(\d+)", response)
+            type_matches = re.findall(ERROR_TYPE_PATTERN, response)
+            if line_matches:
+                error_line = int(line_matches[-1])
+            if type_matches:
+                error_type = type_matches[-1]
+        error_lines.append(error_line)
+        error_types.append(error_type)
     return error_lines, error_types
 
 

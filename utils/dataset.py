@@ -48,7 +48,9 @@ def load_wikipedia(
     text_len = chunk_len - len(bos_ids)
     chunks = []
     for language_index, language in enumerate(calibration_languages):
-        num_language_chunks = num_chunks // len(calibration_languages) + (language_index < num_chunks % len(calibration_languages))
+        num_language_chunks = num_chunks // len(calibration_languages)
+        if language_index < num_chunks % len(calibration_languages):
+            num_language_chunks += 1
         dataset = load_dataset("wikimedia/wikipedia", f"20231101.{language}", split="train", streaming=True).shuffle(seed=shuffle_seed, buffer_size=SHUFFLE_BUFFER_SIZE)
         token_ids = []
         language_chunks = []
@@ -100,7 +102,10 @@ def _load_mcot_translations() -> dict[str, dict[str, str]]:
 
 
 def load_translated_gsm8k() -> dict[str, dict[str, list]]:
-    translations_by_en_question = {" ".join(translations["en"].split()): translations for translations in _load_mcot_translations().values()}
+    translations_by_en_question = {}
+    for translations in _load_mcot_translations().values():
+        en_question = " ".join(translations["en"].split())
+        translations_by_en_question[en_question] = translations
     problems = {language: {"questions": [], "prompts": [], "answers": []} for language in LANGUAGES}
     for row in load_dataset("openai/gsm8k", "main", split="train"):
         translations = translations_by_en_question[" ".join(row["question"].split())]

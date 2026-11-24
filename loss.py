@@ -41,7 +41,10 @@ def main() -> None:
         results[seed][language] = score_generation(generation, problems[language]["answers"], config.benchmark, language)
         print(f"{config.model_hub_path} seed {seed} {language} accuracy {results[seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} truncated {mean(generation['is_truncateds']):.2%}")
 
-    missing_seeds = sorted({seed for seed, _ in missing_seed_languages})
+    missing_seeds = []
+    for seed, _ in missing_seed_languages:
+        if seed not in missing_seeds:
+            missing_seeds.append(seed)
     for seed in missing_seeds:
         save_result(result_dir, config.model_hub_path, config.max_generation_len, seed, results[seed])
 

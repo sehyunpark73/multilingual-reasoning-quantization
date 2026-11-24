@@ -5,7 +5,7 @@ from simple_parsing import parse
 
 from utils.dataset import NON_EN_LANGUAGES, load_mgsm
 from utils.generate import generate_without_thinking
-from utils.hub import has_result, save_result
+from utils.hub import download_model, has_result, save_result
 from utils.path import make_model_hub_path
 
 RESULT_DIR = "mgsm_translation"
@@ -32,7 +32,7 @@ def main() -> None:
     for language in NON_EN_LANGUAGES:
         prompt_lists.append([f"{TRANSLATION_INSTRUCTION}\n\n{question}" for question in problems[language]["questions"]])
     prompt_list_seeds = [config.seed] * len(NON_EN_LANGUAGES)
-    generations = generate_without_thinking(config.model_name, config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len)
+    generations = generate_without_thinking(download_model(model_hub_path), config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len)
 
     result = {}
     for language, generation in zip(NON_EN_LANGUAGES, generations):

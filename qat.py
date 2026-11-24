@@ -60,7 +60,8 @@ def _make_native_reasoning_samples(
     empty_en_question_ids = torch.tensor([], dtype=torch.long)
     samples = []
     for language in NON_EN_LANGUAGES:
-        for prompt, reasoning_ids in zip(gsm8k_reasoning_result[language]["prompts"], gsm8k_reasoning_result[language]["reasoning_ids"]):
+        language_result = gsm8k_reasoning_result[language]
+        for prompt, reasoning_ids in zip(language_result["prompts"], language_result["reasoning_ids"]):
             if len(reasoning_ids) >= MAX_REASONING_LEN:
                 continue
             samples.append((tokenize_prompt(tokenizer, prompt), empty_en_question_ids, torch.tensor(reasoning_ids + [reasoning_end_id])))
@@ -113,7 +114,7 @@ def main() -> None:
     if has_model(model_hub_path):
         print(f"{model_hub_path} already finetuned")
         return
-    if any(checkpoint % config.batch_size for checkpoint in config.checkpoint_num_trained_samples):
+    if any(checkpoint_num_trained_sample % config.batch_size for checkpoint_num_trained_sample in config.checkpoint_num_trained_samples):
         raise ValueError(f"checkpoint_num_trained_samples must be multiples of batch_size {config.batch_size}")
 
     set_seed(config.train_seed)
@@ -137,7 +138,7 @@ def main() -> None:
             parametrize.register_parametrization(linear, "weight", _Mxfp4Ste())
         weights = [linear.parametrizations.weight.original for linear in linears]
         save_checkpoint = partial(_save_checkpoint, model, linears, weights, config.model_name, config.loss, config.num_samples)
-        train(weights, samples, partial(_compute_losses, model, bf16_model, config.loss), config.learning_rate, config.num_epochs, config.warmup_ratio, config.batch_size, (*config.checkpoint_num_trained_samples, num_trained_samples), save_checkpoint)
+        train(weights, samples, partial(_compute_losses, model, bf16_model, config.loss), config.learning_rate, config.num_epochs, config.warmup_ratio, config.batch_size, config.checkpoint_num_trained_samples + (num_trained_samples,), save_checkpoint)
 
 
 if __name__ == "__main__":

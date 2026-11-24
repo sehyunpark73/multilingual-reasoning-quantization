@@ -42,7 +42,7 @@ class Config:
     train_seed: int = 0
 
 
-def _make_samples(
+def _make_en_reasoning_samples(
     tokenizer: PreTrainedTokenizerBase,
     model_name: str,
     gsm8k_reasoning_result: dict,
@@ -81,7 +81,10 @@ def _generate_on_policy_batch(
     on_policy_batch = []
     for (prompt_ids, bf16_prompt_ids, _), generated_ids in zip(batch, output_ids[:, inputs["input_ids"].shape[1] :]):
         reasoning_end_positions = (generated_ids == reasoning_end_id).nonzero()
-        reasoning = tokenizer.decode(generated_ids[: reasoning_end_positions[0, 0]] if len(reasoning_end_positions) else generated_ids, skip_special_tokens=True)
+        reasoning_ids = generated_ids
+        if len(reasoning_end_positions) > 0:
+            reasoning_ids = generated_ids[: reasoning_end_positions[0, 0]]
+        reasoning = tokenizer.decode(reasoning_ids, skip_special_tokens=True)
         understanding = extract_understanding(reasoning)
         if understanding is None:
             continue
@@ -139,10 +142,12 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
     model = load_model(config.model_name)
     model.float()
-    bf16_model = None if config.loss == "ce" else load_model(config.model_name)
+    bf16_model = None
+    if config.loss in ("kl", "hidden"):
+        bf16_model = load_model(config.model_name)
 
     gsm8k_reasoning_result = load_result(config.gsm8k_reasoning_hub_path)
-    samples = _make_samples(tokenizer, config.model_name, gsm8k_reasoning_result, config.train_part)[: config.num_samples]
+    samples = _make_en_reasoning_samples(tokenizer, config.model_name, gsm8k_reasoning_result, config.train_part)[: config.num_samples]
     print(f"{model_hub_path} samples {len(samples)}")
 
     with log_time_and_memory(f"{model_hub_path} finetune"):

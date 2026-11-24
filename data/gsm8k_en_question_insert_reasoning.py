@@ -6,7 +6,7 @@ from transformers import AutoTokenizer
 
 from utils.dataset import NON_EN_LANGUAGES, load_translated_gsm8k
 from utils.generate import continue_generation
-from utils.hub import has_result, save_result
+from utils.hub import download_model, has_result, save_result
 from utils.path import make_model_hub_path
 from utils.score import score_generation
 from utils.tokenize import tokenize_with_en_questions
@@ -33,7 +33,7 @@ def main() -> None:
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
     input_ids_lists = [tokenize_with_en_questions(tokenizer, config.model_name, problems[language]["prompts"], problems["en"]["questions"]) for language in NON_EN_LANGUAGES]
     input_ids_list_seeds = [config.seed] * len(NON_EN_LANGUAGES)
-    generations = continue_generation(config.model_name, config.model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len, is_reasoning_ids_returned=True)
+    generations = continue_generation(download_model(model_hub_path), config.model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len, is_reasoning_ids_returned=True)
 
     full_result = {}
     result = {}

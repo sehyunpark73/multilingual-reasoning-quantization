@@ -55,10 +55,11 @@ def main() -> None:
     problems = load_mgsm()
     en_questions = _load_en_questions(problems, config.en_question, config.translation_hub_path)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    input_ids_lists_by_language = {language: tokenize_with_en_questions(tokenizer, model_name, problems[language]["prompts"], en_questions[language]) for language in LANGUAGES}
 
     missing_seed_languages = [(seed, language) for seed in missing_seeds for language in LANGUAGES]
-    input_ids_lists = [input_ids_lists_by_language[language] for _, language in missing_seed_languages]
+    input_ids_lists = []
+    for _, language in missing_seed_languages:
+        input_ids_lists.append(tokenize_with_en_questions(tokenizer, model_name, problems[language]["prompts"], en_questions[language]))
     input_ids_list_seeds = [seed for seed, _ in missing_seed_languages]
     generations = continue_generation(download_model(config.model_hub_path), model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
 

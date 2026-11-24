@@ -4,7 +4,7 @@ from simple_parsing import parse
 
 from utils.dataset import LANGUAGES, load_translated_gsm8k
 from utils.generate import generate
-from utils.hub import has_result, save_result
+from utils.hub import download_model, has_result, save_result
 from utils.path import make_model_hub_path
 from utils.score import score_generation
 
@@ -29,7 +29,7 @@ def main() -> None:
     problems = load_translated_gsm8k()
     prompt_lists = [problems[language]["prompts"] for language in LANGUAGES]
     prompt_list_seeds = [config.seed] * len(LANGUAGES)
-    generations = generate(config.model_name, config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len, is_reasoning_ids_returned=True)
+    generations = generate(download_model(model_hub_path), config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len, is_reasoning_ids_returned=True)
 
     full_result = {}
     for language, generation in zip(LANGUAGES, generations):

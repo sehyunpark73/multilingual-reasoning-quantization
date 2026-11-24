@@ -65,8 +65,10 @@ def main() -> None:
     for language in LANGUAGES:
         solved_problem_indices = find_solved_problem_indices(bf16_results, language)
         with log_time_and_memory(f"{config.model_hub_path} {language} {len(solved_problem_indices)} problems"):
-            tensors[f"{language}/kls"], tensors[f"{language}/token_problem_indices"] = _compute_problem_kls(bf16_model, quantized_model, tokenizer, model_name, problems[language]["prompts"], bf16_results[config.reasoning_seed][language]["reasonings"], solved_problem_indices, config.logit_batch_len)
-        print(f"{config.model_hub_path} {language} kl {tensors[f'{language}/kls'].mean():.4f}")
+            kls, token_problem_indices = _compute_problem_kls(bf16_model, quantized_model, tokenizer, model_name, problems[language]["prompts"], bf16_results[config.reasoning_seed][language]["reasonings"], solved_problem_indices, config.logit_batch_len)
+        tensors[f"{language}/kls"] = kls
+        tensors[f"{language}/token_problem_indices"] = token_problem_indices
+        print(f"{config.model_hub_path} {language} kl {kls.mean():.4f}")
 
     save_tensors(RESULT_DIR, config.model_hub_path, config.max_generation_len, config.reasoning_seed, tensors)
 

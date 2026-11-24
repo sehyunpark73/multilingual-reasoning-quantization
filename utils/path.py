@@ -19,7 +19,9 @@ def make_finetune_model_hub_path(
     model_name: str,
     settings: dict[str, object],
 ) -> str:
-    return f"{finetune_name}/{model_name}/{','.join(f'{name}={value}' for name, value in settings.items())}"
+    setting_texts = [f"{name}={value}" for name, value in settings.items()]
+    settings_text = ",".join(setting_texts)
+    return f"{finetune_name}/{model_name}/{settings_text}"
 
 
 def extract_model_name(
