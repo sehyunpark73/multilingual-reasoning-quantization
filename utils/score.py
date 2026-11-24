@@ -36,3 +36,11 @@ def score_generation(
     predictions = [None if response is None else parse_prediction(response, language) for response in generation["responses"]]
     corrects = [prediction == answer for prediction, answer in zip(predictions, answers)]
     return {"accuracy": sum(corrects) / len(corrects), "corrects": corrects, "predictions": predictions, **generation}
+
+
+def find_solved_problem_indices(
+    results: dict[int, dict],
+    language: str,
+) -> list[int]:
+    corrects_by_seed = [result[language]["corrects"] for result in results.values()]
+    return [problem_index for problem_index, corrects in enumerate(zip(*corrects_by_seed)) if all(corrects)]

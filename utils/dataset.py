@@ -59,8 +59,9 @@ def load_wikipedia(
 def load_mgsm() -> dict[str, dict[str, list]]:
     problems = {}
     for language in LANGUAGES:
-        problems[language] = {"prompts": [], "answers": []}
+        problems[language] = {"questions": [], "prompts": [], "answers": []}
         for row in load_dataset("juletxara/mgsm", language, split="test"):
+            problems[language]["questions"].append(row["question"])
             problems[language]["prompts"].append(MGSM_PROMPTS[language].format(question=row["question"]))
             problems[language]["answers"].append(row["answer_number"])
     return problems

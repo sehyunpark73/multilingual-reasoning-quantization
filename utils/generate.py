@@ -26,8 +26,9 @@ def generate(
     prompt_lists: list[list[str]],
     prompt_list_seeds: list[int],
     max_generation_len: int,
+    max_num_sequences: int | None = None,
 ) -> list[dict]:
-    model = LLM(model_path, tokenizer=model_name, dtype="bfloat16", max_model_len=MAX_MODEL_LEN, language_model_only=True)
+    model = LLM(model_path, tokenizer=model_name, dtype="bfloat16", max_model_len=MAX_MODEL_LEN, language_model_only=True, max_num_seqs=max_num_sequences)
     messages = []
     sampling_params = []
     for prompts, seed in zip(prompt_lists, prompt_list_seeds):

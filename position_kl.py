@@ -9,7 +9,9 @@ from utils.dataset import LANGUAGES, load_mgsm
 from utils.hub import download_model, load_results, make_hub_path, save_tensors, tensors_exist
 from utils.kl import compute_reasoning_kls
 from utils.log import log_time_and_memory
-from utils.model import load_model, tokenize_prompt, tokenize_reasoning
+from utils.model import load_model
+from utils.score import find_solved_problem_indices
+from utils.tokenize import tokenize_prompt, tokenize_reasoning
 
 RESULT_DIR = "position_kl/mgsm"
 
@@ -26,14 +28,6 @@ class Config:
     max_generation_len: int = 16384
     reasoning_seed: int = 0
     bf16_seeds: tuple[int, ...] = (0, 1, 2)
-
-
-def _find_solved_problem_indices(
-    results: dict[int, dict],
-    language: str,
-) -> list[int]:
-    corrects_by_seed = [result[language]["corrects"] for result in results.values()]
-    return [problem_index for problem_index, corrects in enumerate(zip(*corrects_by_seed)) if all(corrects)]
 
 
 @torch.no_grad()
@@ -53,7 +47,7 @@ def main() -> None:
 
     tensors = {}
     for language in LANGUAGES:
-        problem_indices = _find_solved_problem_indices(bf16_results, language)
+        problem_indices = find_solved_problem_indices(bf16_results, language)
         kls = []
         token_problem_indices = []
         with log_time_and_memory(f"{hub_path} {language} {len(problem_indices)} problems"):
