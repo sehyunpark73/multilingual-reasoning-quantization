@@ -15,18 +15,20 @@ from utils.log import log_time_and_memory
 from utils.model import capture_layer_inputs, find_linears, load_model
 from utils.stats import compute_abs_mean_and_hessian
 
+MIN_SMOOTH = 1e-4
+
 
 @dataclass
 class Config:
     model_name: str = "google/gemma-4-E2B-it"
+    calibration_languages: tuple[Literal["en", "zh", "ja", "sw", "te"], ...] = ("en",)
     num_bits: int = 4
     group_size: int = 128
-    num_search_steps: int = 20
-    max_shrink: float = 0.5
-    calibration_languages: tuple[Literal["en", "zh", "ja", "sw", "te"], ...] = ("en",)
     num_chunks: int = 128
     chunk_len: int = 2048
     shuffle_seed: int = 0
+    num_search_steps: int = 20
+    max_shrink: float = 0.5
 
 
 def _find_linear_groups(
@@ -82,7 +84,7 @@ def _find_smooth(
 
     best_error = math.inf
     for smooth_exponent in np.linspace(0.0, 1.0, num_search_steps, endpoint=False):
-        smooth = abs_mean.pow(smooth_exponent).clamp(min=1e-4)
+        smooth = abs_mean.pow(smooth_exponent).clamp(min=MIN_SMOOTH)
         smooth = smooth / (smooth.max() * smooth.min()).sqrt()
         for linear, unquantized_weight in zip(linears, unquantized_weights):
             linear.weight.copy_(_quantize_weight(unquantized_weight, smooth, None, num_bits, group_size))

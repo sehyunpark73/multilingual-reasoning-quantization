@@ -22,14 +22,14 @@ import subprocess
 import tarfile
 tarfile.open("project.tar.gz").extractall(filter="data")
 subprocess.run(["uv", "pip", "install", "--system", *$packages], check=True)
-proc = subprocess.Popen(
+process = subprocess.Popen(
     ["bash", "-c", 'set -a && . ./.env && set +a && PYTHONPATH=. exec python -u "\$@"', "bash", *$argv],
     stdout=subprocess.PIPE,
     stderr=subprocess.STDOUT,
     text=True,
 )
-for line in proc.stdout:
+for line in process.stdout:
     print(line, end="", flush=True)
-if proc.wait() != 0:
+if process.wait() != 0:
     print("fail", flush=True)
 EOF

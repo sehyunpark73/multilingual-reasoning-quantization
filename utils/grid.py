@@ -1,6 +1,8 @@
 import torch
 from torch import Tensor
 
+MIN_SCALE = 1e-8
+
 
 def compute_grid(
     weight: Tensor,
@@ -8,7 +10,7 @@ def compute_grid(
 ) -> tuple[Tensor, Tensor]:
     weight_min = weight.amin(dim=-1).clamp(max=0)
     weight_max = weight.amax(dim=-1).clamp(min=0)
-    scale = ((weight_max - weight_min) / (2**num_bits - 1)).clamp(min=1e-8)
+    scale = ((weight_max - weight_min) / (2**num_bits - 1)).clamp(min=MIN_SCALE)
     zero = torch.round(-weight_min / scale)
     return scale, zero
 

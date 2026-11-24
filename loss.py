@@ -49,14 +49,14 @@ def main() -> None:
     problems = load_mgsm() if config.benchmark == "mgsm" else load_mmlu_prox_lite()
     prompt_lists = [problems[language]["prompts"] for _, language in missing_seed_languages]
     prompt_list_seeds = [seed for seed, _ in missing_seed_languages]
-    model_path = config.model_name if hub_path == make_hub_path("bf16", config.model_name) else download_model(hub_path)
-    generations = generate(model_path, config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len)
+    generations = generate(download_model(hub_path, config.model_name), config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len)
 
     for (seed, language), generation in zip(missing_seed_languages, generations):
         results[seed][language] = score_generation(generation, problems[language]["answers"], config.benchmark, language)
         print(f"{hub_path} seed {seed} {language} accuracy {results[seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} truncated {mean(generation['truncateds']):.2%}")
 
-    for seed in sorted({seed for seed, _ in missing_seed_languages}):
+    missing_seeds = sorted({seed for seed, _ in missing_seed_languages})
+    for seed in missing_seeds:
         save_result(result_dir, hub_path, config.max_generation_len, seed, results[seed])
 
 

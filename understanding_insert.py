@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
-from utils.hub import download_model, load_results, make_hub_path, save_result
+from utils.hub import download_model, load_bf16_results, load_results, make_hub_path, save_result
 from utils.score import score_generation
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.understanding import extract_understanding
@@ -36,12 +36,15 @@ def _tokenize_with_understandings(
     prompts: list[str],
     bf16_reasonings: list[str],
 ) -> tuple[list[int], list[Tensor]]:
-    understandings = [extract_understanding(reasoning) for reasoning in bf16_reasonings]
-    inserted_problem_indices = [problem_index for problem_index, understanding in enumerate(understandings) if understanding is not None]
+    inserted_problem_indices = []
     input_ids_list = []
-    for problem_index in inserted_problem_indices:
+    for problem_index, reasoning in enumerate(bf16_reasonings):
+        understanding = extract_understanding(reasoning)
+        if understanding is None:
+            continue
         prompt_ids = tokenize_prompt(tokenizer, prompts[problem_index])
-        understanding_ids = tokenize_reasoning(tokenizer, model_name, understandings[problem_index])
+        understanding_ids = tokenize_reasoning(tokenizer, model_name, understanding)
+        inserted_problem_indices.append(problem_index)
         input_ids_list.append(torch.cat([prompt_ids, understanding_ids]))
     return inserted_problem_indices, input_ids_list
 
@@ -58,23 +61,25 @@ def main() -> None:
         return
 
     problems = load_mgsm()
-    bf16_results = load_results("loss/mgsm", make_hub_path("bf16", config.model_name), config.max_generation_len, tuple(missing_seeds))
+    bf16_results = load_bf16_results(config.model_name, config.max_generation_len, missing_seeds)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-    seed_languages = [(seed, language) for seed in missing_seeds for language in LANGUAGES]
+    missing_seed_languages = []
+    for seed in missing_seeds:
+        for language in LANGUAGES:
+            missing_seed_languages.append((seed, language))
     inserted_problem_indices = {}
     input_ids_lists = []
-    for seed, language in seed_languages:
+    for seed, language in missing_seed_languages:
         bf16_language = language if config.understanding_language == "native" else "en"
         inserted_problem_indices[seed, language], input_ids_list = _tokenize_with_understandings(tokenizer, config.model_name, problems[language]["prompts"], bf16_results[seed][bf16_language]["reasonings"])
         input_ids_lists.append(input_ids_list)
 
-    model_path = config.model_name if config.method == "bf16" else download_model(hub_path)
-    input_ids_list_seeds = [seed for seed, _ in seed_languages]
-    generations = continue_generation(model_path, config.model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
+    input_ids_list_seeds = [seed for seed, _ in missing_seed_languages]
+    generations = continue_generation(download_model(hub_path, config.model_name), config.model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
 
-    for (seed, language), generation in zip(seed_languages, generations):
+    for (seed, language), generation in zip(missing_seed_languages, generations):
         answers = [problems[language]["answers"][problem_index] for problem_index in inserted_problem_indices[seed, language]]
-        results[seed][language] = {**score_generation(generation, answers, "mgsm", language), "inserted_problem_indices": inserted_problem_indices[seed, language]}
+        results[seed][language] = {"inserted_problem_indices": inserted_problem_indices[seed, language], **score_generation(generation, answers, "mgsm", language)}
         print(f"{hub_path} seed {seed} {language} accuracy {results[seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} inserted {len(answers)} of {len(problems[language]['prompts'])}")
 
     for seed in missing_seeds:

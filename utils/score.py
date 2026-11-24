@@ -18,8 +18,7 @@ def _parse_mmlu_prox_lite_prediction(
     response: str,
     language: str,
 ) -> str | None:
-    _, _, _, answer_format = MMLU_PROX_LITE_TEMPLATES[language]
-    answer_prefix = answer_format.split("(")[0].strip()
+    answer_prefix = MMLU_PROX_LITE_TEMPLATES[language]["answer_format"].split("(")[0].strip()
     response = response.replace("*", "")
     letters = re.findall(rf"(?i:{re.escape(answer_prefix)})\s*[:：]?\s*\(?([A-J])\b\)?", response)
     letters = letters or re.findall(r"\b([A-J])\b", response)

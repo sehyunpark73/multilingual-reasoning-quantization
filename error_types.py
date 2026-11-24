@@ -6,7 +6,7 @@ from simple_parsing import parse
 
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import generate
-from utils.hub import load_results, make_hub_path, save_result
+from utils.hub import LOSS_RESULT_DIR, load_bf16_results, load_results, make_hub_path, save_result
 from utils.score import find_solved_problem_indices
 
 RESULT_DIR = "error_types/mgsm"
@@ -71,13 +71,13 @@ def _find_wrong_problem_indices(
 def _make_judge_prompts(
     problems: dict[str, dict[str, list]],
     language: str,
-    problem_indices: list[int],
+    wrong_problem_indices: list[int],
     bf16_reasonings: list[str],
-    reasonings: list[str],
+    quantized_reasonings: list[str],
 ) -> list[str]:
     judge_prompts = []
-    for problem_index in problem_indices:
-        numbered_lines = [f"{line_index + 1}: {line}" for line_index, line in enumerate(reasonings[problem_index].split("\n"))]
+    for problem_index in wrong_problem_indices:
+        numbered_lines = [f"{line_index + 1}: {line}" for line_index, line in enumerate(quantized_reasonings[problem_index].split("\n"))]
         judge_prompts.append(JUDGE_PROMPT.format(
             en_question=problems["en"]["questions"][problem_index],
             question=problems[language]["questions"][problem_index],
@@ -112,20 +112,23 @@ def main() -> None:
         return
 
     problems = load_mgsm()
-    bf16_results = load_results("loss/mgsm", make_hub_path("bf16", config.model_name), config.max_generation_len, config.bf16_seeds)
-    quantized_results = load_results("loss/mgsm", hub_path, config.max_generation_len, tuple(missing_seeds))
-    seed_languages = [(seed, language) for seed in missing_seeds for language in LANGUAGES]
+    bf16_results = load_bf16_results(config.model_name, config.max_generation_len, config.bf16_seeds)
+    quantized_results = load_results(LOSS_RESULT_DIR, hub_path, config.max_generation_len, missing_seeds)
+    missing_seed_languages = []
+    for seed in missing_seeds:
+        for language in LANGUAGES:
+            missing_seed_languages.append((seed, language))
     wrong_problem_indices = {}
     judge_prompt_lists = []
-    for seed, language in seed_languages:
+    for seed, language in missing_seed_languages:
         wrong_problem_indices[seed, language] = _find_wrong_problem_indices(bf16_results, quantized_results[seed], language)
         judge_prompt_lists.append(_make_judge_prompts(problems, language, wrong_problem_indices[seed, language], bf16_results[seed][language]["reasonings"], quantized_results[seed][language]["reasonings"]))
         print(f"{hub_path} seed {seed} {language} wrong {len(wrong_problem_indices[seed, language])}")
 
-    judge_prompt_list_seeds = [seed for seed, _ in seed_languages]
+    judge_prompt_list_seeds = [seed for seed, _ in missing_seed_languages]
     generations = generate(config.judge_model_name, config.judge_model_name, judge_prompt_lists, judge_prompt_list_seeds, config.judge_max_generation_len, JUDGE_MAX_NUM_SEQUENCES)
 
-    for (seed, language), generation in zip(seed_languages, generations):
+    for (seed, language), generation in zip(missing_seed_languages, generations):
         error_lines, error_types = _parse_judgments(generation["responses"])
         results[seed][language] = {"wrong_problem_indices": wrong_problem_indices[seed, language], "error_lines": error_lines, "error_types": error_types, **generation}
         print(f"{hub_path} seed {seed} {language} judged {len(error_types)} unparsed {error_types.count(None)}")

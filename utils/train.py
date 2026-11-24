@@ -7,7 +7,7 @@ from torch import Tensor
 from torch.optim import AdamW
 from transformers import get_cosine_schedule_with_warmup
 
-LOG_STEPS = 16
+LOG_INTERVAL_STEPS = 16
 
 
 def train(
@@ -31,14 +31,14 @@ def train(
         random.shuffle(samples)
         for batch_index, batch_start in enumerate(range(0, len(samples), batch_size)):
             batch_loss = 0.0
-            for loss in compute_losses(samples[batch_start : batch_start + batch_size]):
-                loss.backward()
-                batch_loss += loss.item()
+            for sample_loss in compute_losses(samples[batch_start : batch_start + batch_size]):
+                sample_loss.backward()
+                batch_loss += sample_loss.item()
             optimizer.step()
             scheduler.step()
             optimizer.zero_grad()
             batch_losses.append(batch_loss)
             step = epoch * num_batches + batch_index + 1
-            if step == 1 or step % LOG_STEPS == 0:
-                print(f"epoch {epoch + 1}/{num_epochs} batch {batch_index + 1}/{num_batches} loss {mean(batch_losses):.4f} lr {scheduler.get_last_lr()[0]:.2e}")
+            if step == 1 or step % LOG_INTERVAL_STEPS == 0:
+                print(f"epoch {epoch + 1}/{num_epochs} batch {batch_index + 1}/{num_batches} loss {mean(batch_losses):.4f} learning_rate {scheduler.get_last_lr()[0]:.2e}")
                 batch_losses = []

@@ -8,8 +8,8 @@ import torch
 def _format_duration(
     duration: float,
 ) -> str:
-    minute, second = divmod(round(duration), 60)
-    return f"{minute}m{second:02d}s"
+    minutes, seconds = divmod(round(duration), 60)
+    return f"{minutes}m{seconds:02d}s"
 
 
 def _format_memory(

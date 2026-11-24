@@ -33,6 +33,15 @@ def compute_abs_mean_and_hessian(
     return abs_sum / num_tokens, hessian
 
 
+def compute_kls(
+    bf16_logits: Tensor,
+    logits: Tensor,
+) -> Tensor:
+    bf16_logprobs = log_softmax(bf16_logits, dim=-1)
+    logprobs = log_softmax(logits, dim=-1)
+    return (bf16_logprobs.exp() * (bf16_logprobs - logprobs)).sum(dim=-1)
+
+
 def compute_reasoning_kls(
     bf16_model: PreTrainedModel,
     quantized_model: PreTrainedModel,
@@ -44,7 +53,7 @@ def compute_reasoning_kls(
     quantized_hiddens = forward_reasoning_hiddens(quantized_model, input_ids, prompt_len)
     kls = []
     for batch_start in range(0, len(bf16_hiddens), logit_batch_len):
-        bf16_logprobs = log_softmax(compute_logits(bf16_model, bf16_hiddens[batch_start : batch_start + logit_batch_len]), dim=-1)
-        quantized_logprobs = log_softmax(compute_logits(quantized_model, quantized_hiddens[batch_start : batch_start + logit_batch_len]), dim=-1)
-        kls.append((bf16_logprobs.exp() * (bf16_logprobs - quantized_logprobs)).sum(dim=-1).cpu())
+        bf16_logits = compute_logits(bf16_model, bf16_hiddens[batch_start : batch_start + logit_batch_len])
+        quantized_logits = compute_logits(quantized_model, quantized_hiddens[batch_start : batch_start + logit_batch_len])
+        kls.append(compute_kls(bf16_logits, quantized_logits).cpu())
     return torch.cat(kls)

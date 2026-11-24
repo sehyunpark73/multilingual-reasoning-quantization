@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
-from utils.hub import download_model, load_results, make_hub_path, save_result
+from utils.hub import download_model, load_bf16_results, load_results, make_hub_path, save_result
 from utils.score import score_generation
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.understanding import extract_understanding
@@ -58,33 +58,40 @@ def main() -> None:
     hub_path = make_hub_path(config.method, config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks)
     result_dirs = {length_ratio: f"{RESULT_DIR}/length_ratio={length_ratio}" for length_ratio in LENGTH_RATIOS}
 
-    results = {length_ratio: load_results(result_dirs[length_ratio], hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
-    missing_seed_ratios = [(seed, length_ratio) for seed in config.seeds for length_ratio in LENGTH_RATIOS if not results[length_ratio][seed]]
+    results_by_ratio = {length_ratio: load_results(result_dirs[length_ratio], hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
+    missing_seed_ratios = []
+    for seed in config.seeds:
+        for length_ratio in LENGTH_RATIOS:
+            if not results_by_ratio[length_ratio][seed]:
+                missing_seed_ratios.append((seed, length_ratio))
     if not missing_seed_ratios:
         print(f"{hub_path} already evaluated")
         return
 
     problems = load_mgsm()
-    missing_seeds = tuple(sorted({seed for seed, _ in missing_seed_ratios}))
-    bf16_results = load_results("loss/mgsm", make_hub_path("bf16", config.model_name), config.max_generation_len, missing_seeds)
+    missing_seeds = sorted({seed for seed, _ in missing_seed_ratios})
+    bf16_results = load_bf16_results(config.model_name, config.max_generation_len, missing_seeds)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
-    seed_ratio_languages = [(seed, length_ratio, language) for seed, length_ratio in missing_seed_ratios for language in LANGUAGES]
+    missing_seed_ratio_languages = []
+    for seed, length_ratio in missing_seed_ratios:
+        for language in LANGUAGES:
+            missing_seed_ratio_languages.append((seed, length_ratio, language))
     inserted_problem_indices = {}
     input_ids_lists = []
-    for seed, length_ratio, language in seed_ratio_languages:
+    for seed, length_ratio, language in missing_seed_ratio_languages:
         inserted_problem_indices[seed, length_ratio, language], input_ids_list = _tokenize_with_reasoning_prefixes(tokenizer, config.model_name, problems[language]["prompts"], bf16_results[seed][language]["reasonings"], length_ratio)
         input_ids_lists.append(input_ids_list)
 
-    input_ids_list_seeds = [seed for seed, _, _ in seed_ratio_languages]
-    generations = continue_generation(download_model(hub_path), config.model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
+    input_ids_list_seeds = [seed for seed, _, _ in missing_seed_ratio_languages]
+    generations = continue_generation(download_model(hub_path, config.model_name), config.model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
 
-    for (seed, length_ratio, language), generation in zip(seed_ratio_languages, generations):
+    for (seed, length_ratio, language), generation in zip(missing_seed_ratio_languages, generations):
         answers = [problems[language]["answers"][problem_index] for problem_index in inserted_problem_indices[seed, length_ratio, language]]
-        results[length_ratio][seed][language] = {**score_generation(generation, answers, "mgsm", language), "inserted_problem_indices": inserted_problem_indices[seed, length_ratio, language]}
-        print(f"{hub_path} seed {seed} length ratio {length_ratio} {language} accuracy {results[length_ratio][seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} inserted {len(answers)} of {len(problems[language]['prompts'])}")
+        results_by_ratio[length_ratio][seed][language] = {"inserted_problem_indices": inserted_problem_indices[seed, length_ratio, language], **score_generation(generation, answers, "mgsm", language)}
+        print(f"{hub_path} seed {seed} length ratio {length_ratio} {language} accuracy {results_by_ratio[length_ratio][seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} inserted {len(answers)} of {len(problems[language]['prompts'])}")
 
     for seed, length_ratio in missing_seed_ratios:
-        save_result(result_dirs[length_ratio], hub_path, config.max_generation_len, seed, results[length_ratio][seed])
+        save_result(result_dirs[length_ratio], hub_path, config.max_generation_len, seed, results_by_ratio[length_ratio][seed])
 
 
 if __name__ == "__main__":
