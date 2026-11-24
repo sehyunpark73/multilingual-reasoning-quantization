@@ -110,10 +110,7 @@ def main() -> None:
     bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, config.bf16_seeds)
     quantized_results = load_results(make_loss_result_dir("mgsm"), config.model_hub_path, config.max_generation_len, missing_seeds)
 
-    missing_seed_languages = []
-    for seed in missing_seeds:
-        for language in LANGUAGES:
-            missing_seed_languages.append((seed, language))
+    missing_seed_languages = [(seed, language) for seed in missing_seeds for language in LANGUAGES]
     wrong_problem_indices = {}
     judge_prompt_lists = []
     for seed, language in missing_seed_languages:

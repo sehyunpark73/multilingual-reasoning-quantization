@@ -54,11 +54,7 @@ def main() -> None:
     result_dirs = {length_ratio: f"{RESULT_DIR}/length_ratio={length_ratio}" for length_ratio in LENGTH_RATIOS}
 
     results_by_ratio = {length_ratio: load_results(result_dirs[length_ratio], config.model_hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
-    missing_seed_ratios = []
-    for seed in config.seeds:
-        for length_ratio in LENGTH_RATIOS:
-            if not results_by_ratio[length_ratio][seed]:
-                missing_seed_ratios.append((seed, length_ratio))
+    missing_seed_ratios = [(seed, length_ratio) for seed in config.seeds for length_ratio in LENGTH_RATIOS if not results_by_ratio[length_ratio][seed]]
     if not missing_seed_ratios:
         print(f"{config.model_hub_path} already evaluated")
         return
@@ -68,10 +64,7 @@ def main() -> None:
     bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, missing_seeds)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    missing_seed_ratio_languages = []
-    for seed, length_ratio in missing_seed_ratios:
-        for language in LANGUAGES:
-            missing_seed_ratio_languages.append((seed, length_ratio, language))
+    missing_seed_ratio_languages = [(seed, length_ratio, language) for seed, length_ratio in missing_seed_ratios for language in LANGUAGES]
     inserted_problem_indices = {}
     input_ids_lists = []
     for seed, length_ratio, language in missing_seed_ratio_languages:

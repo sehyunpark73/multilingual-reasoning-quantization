@@ -60,10 +60,7 @@ def main() -> None:
     bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, missing_seeds)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
-    missing_seed_languages = []
-    for seed in missing_seeds:
-        for language in LANGUAGES:
-            missing_seed_languages.append((seed, language))
+    missing_seed_languages = [(seed, language) for seed in missing_seeds for language in LANGUAGES]
     inserted_problem_indices = {}
     input_ids_lists = []
     for seed, language in missing_seed_languages:

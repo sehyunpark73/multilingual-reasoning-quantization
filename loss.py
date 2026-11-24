@@ -19,24 +19,13 @@ class Config:
     seeds: tuple[int, ...] = (0, 1, 2)
 
 
-def _find_missing_seed_languages(
-    results: dict[int, dict],
-) -> list[tuple[int, str]]:
-    missing_seed_languages = []
-    for seed, result in results.items():
-        for language in LANGUAGES:
-            if language not in result:
-                missing_seed_languages.append((seed, language))
-    return missing_seed_languages
-
-
 def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
 
     result_dir = make_loss_result_dir(config.benchmark)
     results = load_results(result_dir, config.model_hub_path, config.max_generation_len, config.seeds)
-    missing_seed_languages = _find_missing_seed_languages(results)
+    missing_seed_languages = [(seed, language) for seed, result in results.items() for language in LANGUAGES if language not in result]
     if not missing_seed_languages:
         print(f"{config.model_hub_path} already evaluated")
         return
