@@ -60,23 +60,45 @@ class Config:
     bf16_seeds: tuple[int, ...] = (0, 1, 2)
 
 
-def _make_judge_prompt(
-    en_question: str,
-    question: str,
-    answer: int,
-    bf16_reasoning: str,
-    reasoning: str,
-) -> str:
-    numbered_lines = [f"{line_index + 1}: {line}" for line_index, line in enumerate(reasoning.split("\n"))]
-    return JUDGE_PROMPT.format(en_question=en_question, question=question, answer=answer, bf16_reasoning=bf16_reasoning, numbered_reasoning="\n".join(numbered_lines))
+def _find_wrong_problem_indices(
+    bf16_results: dict[int, dict],
+    quantized_result: dict,
+    language: str,
+) -> list[int]:
+    return [problem_index for problem_index in find_solved_problem_indices(bf16_results, language) if not quantized_result[language]["corrects"][problem_index]]
 
 
-def _parse_judgment(
-    response: str | None,
-) -> tuple[int | None, str | None]:
-    line_matches = re.findall(r"line:\s*(\d+)", response or "")
-    type_matches = re.findall(rf"type:\s*({'|'.join(ERROR_TYPES)})\b", response or "")
-    return int(line_matches[-1]) if line_matches else None, type_matches[-1] if type_matches else None
+def _make_judge_prompts(
+    problems: dict[str, dict[str, list]],
+    language: str,
+    problem_indices: list[int],
+    bf16_reasonings: list[str],
+    reasonings: list[str],
+) -> list[str]:
+    judge_prompts = []
+    for problem_index in problem_indices:
+        numbered_lines = [f"{line_index + 1}: {line}" for line_index, line in enumerate(reasonings[problem_index].split("\n"))]
+        judge_prompts.append(JUDGE_PROMPT.format(
+            en_question=problems["en"]["questions"][problem_index],
+            question=problems[language]["questions"][problem_index],
+            answer=problems[language]["answers"][problem_index],
+            bf16_reasoning=bf16_reasonings[problem_index],
+            numbered_reasoning="\n".join(numbered_lines),
+        ))
+    return judge_prompts
+
+
+def _parse_judgments(
+    responses: list[str | None],
+) -> tuple[list[int | None], list[str | None]]:
+    error_lines = []
+    error_types = []
+    for response in responses:
+        line_matches = re.findall(r"line:\s*(\d+)", response or "")
+        type_matches = re.findall(rf"type:\s*({'|'.join(ERROR_TYPES)})\b", response or "")
+        error_lines.append(int(line_matches[-1]) if line_matches else None)
+        error_types.append(type_matches[-1] if type_matches else None)
+    return error_lines, error_types
 
 
 def main() -> None:
@@ -96,30 +118,15 @@ def main() -> None:
     wrong_problem_indices = {}
     judge_prompt_lists = []
     for seed, language in seed_languages:
-        solved_problem_indices = find_solved_problem_indices(bf16_results, language)
-        wrong_problem_indices[seed, language] = [problem_index for problem_index in solved_problem_indices if not quantized_results[seed][language]["corrects"][problem_index]]
-        judge_prompts = []
-        for problem_index in wrong_problem_indices[seed, language]:
-            judge_prompts.append(_make_judge_prompt(
-                problems["en"]["questions"][problem_index],
-                problems[language]["questions"][problem_index],
-                problems[language]["answers"][problem_index],
-                bf16_results[seed][language]["reasonings"][problem_index],
-                quantized_results[seed][language]["reasonings"][problem_index],
-            ))
-        judge_prompt_lists.append(judge_prompts)
-        print(f"{hub_path} seed {seed} {language} wrong {len(judge_prompts)} of {len(solved_problem_indices)} solved")
+        wrong_problem_indices[seed, language] = _find_wrong_problem_indices(bf16_results, quantized_results[seed], language)
+        judge_prompt_lists.append(_make_judge_prompts(problems, language, wrong_problem_indices[seed, language], bf16_results[seed][language]["reasonings"], quantized_results[seed][language]["reasonings"]))
+        print(f"{hub_path} seed {seed} {language} wrong {len(wrong_problem_indices[seed, language])}")
 
     judge_prompt_list_seeds = [seed for seed, _ in seed_languages]
     generations = generate(config.judge_model_name, config.judge_model_name, judge_prompt_lists, judge_prompt_list_seeds, config.judge_max_generation_len, JUDGE_MAX_NUM_SEQUENCES)
 
     for (seed, language), generation in zip(seed_languages, generations):
-        error_lines = []
-        error_types = []
-        for response in generation["responses"]:
-            error_line, error_type = _parse_judgment(response)
-            error_lines.append(error_line)
-            error_types.append(error_type)
+        error_lines, error_types = _parse_judgments(generation["responses"])
         results[seed][language] = {"wrong_problem_indices": wrong_problem_indices[seed, language], "error_lines": error_lines, "error_types": error_types, **generation}
         print(f"{hub_path} seed {seed} {language} judged {len(error_types)} unparsed {error_types.count(None)}")
 

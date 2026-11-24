@@ -3,7 +3,8 @@ from typing import Literal
 
 from simple_parsing import parse
 import torch
-from transformers import AutoTokenizer
+from torch import Tensor
+from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.hub import download_model, load_results, make_hub_path, save_tensors, tensors_exist
@@ -30,6 +31,26 @@ class Config:
     bf16_seeds: tuple[int, ...] = (0, 1, 2)
 
 
+def _compute_problem_kls(
+    bf16_model: PreTrainedModel,
+    quantized_model: PreTrainedModel,
+    tokenizer: PreTrainedTokenizerBase,
+    model_name: str,
+    prompts: list[str],
+    bf16_reasonings: list[str],
+    problem_indices: list[int],
+    logit_batch_len: int,
+) -> tuple[Tensor, Tensor]:
+    kls = []
+    token_problem_indices = []
+    for problem_index in problem_indices:
+        prompt_ids = tokenize_prompt(tokenizer, prompts[problem_index])
+        reasoning_ids = tokenize_reasoning(tokenizer, model_name, bf16_reasonings[problem_index])
+        kls.append(compute_reasoning_kls(bf16_model, quantized_model, torch.cat([prompt_ids, reasoning_ids]), len(prompt_ids), logit_batch_len))
+        token_problem_indices.append(torch.full_like(reasoning_ids, problem_index, dtype=torch.int32))
+    return torch.cat(kls), torch.cat(token_problem_indices)
+
+
 @torch.no_grad()
 def main() -> None:
     config = parse(Config)
@@ -39,8 +60,7 @@ def main() -> None:
         return
 
     problems = load_mgsm()
-    bf16_hub_path = make_hub_path("bf16", config.model_name)
-    bf16_results = load_results("loss/mgsm", bf16_hub_path, config.max_generation_len, config.bf16_seeds)
+    bf16_results = load_results("loss/mgsm", make_hub_path("bf16", config.model_name), config.max_generation_len, config.bf16_seeds)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)
     bf16_model = load_model(config.model_name)
     quantized_model = load_model(download_model(hub_path))
@@ -48,16 +68,8 @@ def main() -> None:
     tensors = {}
     for language in LANGUAGES:
         problem_indices = find_solved_problem_indices(bf16_results, language)
-        kls = []
-        token_problem_indices = []
         with log_time_and_memory(f"{hub_path} {language} {len(problem_indices)} problems"):
-            for problem_index in problem_indices:
-                prompt_ids = tokenize_prompt(tokenizer, problems[language]["prompts"][problem_index])
-                reasoning_ids = tokenize_reasoning(tokenizer, config.model_name, bf16_results[config.reasoning_seed][language]["reasonings"][problem_index])
-                kls.append(compute_reasoning_kls(bf16_model, quantized_model, torch.cat([prompt_ids, reasoning_ids]), len(prompt_ids), config.logit_batch_len))
-                token_problem_indices.append(torch.full_like(reasoning_ids, problem_index, dtype=torch.int32))
-        tensors[f"{language}/kls"] = torch.cat(kls)
-        tensors[f"{language}/token_problem_indices"] = torch.cat(token_problem_indices)
+            tensors[f"{language}/kls"], tensors[f"{language}/token_problem_indices"] = _compute_problem_kls(bf16_model, quantized_model, tokenizer, config.model_name, problems[language]["prompts"], bf16_results[config.reasoning_seed][language]["reasonings"], problem_indices, config.logit_batch_len)
         print(f"{hub_path} {language} kl {tensors[f'{language}/kls'].mean():.4f}")
 
     save_tensors(RESULT_DIR, hub_path, config.max_generation_len, config.reasoning_seed, tensors)
