@@ -6,11 +6,10 @@ from simple_parsing import parse
 from utils.dataset import LANGUAGES
 from utils.hub import load_bf16_results, load_results
 from utils.path import extract_method, extract_model_name, make_result_dir
-from utils.plot import INSERT_LOSS_YLIM, add_language_legend, make_insert_handles, make_problem_count_labels, plot_insert_bars, save_figure
+from utils.plot import add_language_legend, compute_figure_size, make_insert_handles, make_problem_count_labels, plot_insert_bars, save_figure
 from utils.score import compute_insert_losses, find_common_inserted_problem_indices
 
-EN_INSERT_LOSS_YMIN = -0.2
-FIGURE_SIZE = (15, 5)
+FIGURE_WIDTH = 15
 
 
 @dataclass
@@ -42,13 +41,12 @@ def main() -> None:
         for language in LANGUAGES:
             losses[language].append(compute_insert_losses(bf16_results, no_insert_results, insert_results, language, problem_indices_by_language[language]))
 
-    fig, ax = plt.subplots(figsize=FIGURE_SIZE, layout="constrained")
+    fig, ax = plt.subplots(figsize=compute_figure_size(1, FIGURE_WIDTH), layout="constrained")
     plot_insert_bars(ax, methods, losses, [])
     ax.set_ylabel("손실")
-    ax.set_ylim(EN_INSERT_LOSS_YMIN, INSERT_LOSS_YLIM[1])
 
     fig.suptitle("영어 understanding 삽입")
-    add_language_legend(fig, make_problem_count_labels(problem_indices_by_language), make_insert_handles())
+    add_language_legend(fig, make_problem_count_labels(problem_indices_by_language), make_insert_handles("삽입 없음", "삽입"))
     save_figure(fig, model_name, "en_understanding_insert")
 
 

@@ -1,9 +1,13 @@
+from collections.abc import Callable
 import re
 from statistics import mean
 
 from utils.dataset import LANGUAGES, MMLU_PROX_LITE_TEMPLATES, Benchmark
 
 MGSM_ANSWER_PREFIXES = {"en": "Answer", "zh": "答案", "ja": "答え", "sw": "Jibu", "te": "సమాధానం"}
+LOOP_TAIL_LEN = 200
+LOOP_PATTERN_LEN = 50
+MIN_LOOP_COUNT = 5
 
 
 def _parse_mgsm_prediction(
@@ -85,6 +89,55 @@ def compute_accuracy_losses(
         bf16_accuracy = _compute_mean_accuracy(bf16_results, language)
         losses[language] = [bf16_accuracy - _compute_mean_accuracy(results, language) for results in all_results]
     return losses
+
+
+def compute_accuracy_loss_pairs(
+    bf16_results: dict[int, dict],
+    all_no_insert_results: list[dict[int, dict]],
+    all_insert_results: list[dict[int, dict]],
+) -> dict[str, list[tuple[float, float]]]:
+    no_insert_losses = compute_accuracy_losses(bf16_results, all_no_insert_results)
+    insert_losses = compute_accuracy_losses(bf16_results, all_insert_results)
+    return {language: list(zip(no_insert_losses[language], insert_losses[language])) for language in LANGUAGES}
+
+
+def _has_loop(
+    text: str | None,
+) -> bool:
+    if text is None or len(text) <= LOOP_TAIL_LEN:
+        return False
+    pattern = text[-LOOP_TAIL_LEN : -LOOP_TAIL_LEN + LOOP_PATTERN_LEN]
+    return text[:-LOOP_TAIL_LEN].count(pattern) >= MIN_LOOP_COUNT
+
+
+def compute_truncated_ratio(
+    language_result: dict,
+) -> float:
+    num_truncateds = 0
+    for is_truncated, is_correct in zip(language_result["is_truncateds"], language_result["is_corrects"]):
+        if is_truncated and not is_correct:
+            num_truncateds += 1
+    return num_truncateds / len(language_result["is_truncateds"])
+
+
+def compute_loop_ratio(
+    language_result: dict,
+) -> float:
+    num_loops = 0
+    for reasoning, response in zip(language_result["reasonings"], language_result["responses"]):
+        if _has_loop(reasoning) or _has_loop(response):
+            num_loops += 1
+    return num_loops / len(language_result["reasonings"])
+
+
+def compute_mean_values(
+    all_results: list[dict[int, dict]],
+    compute_value: Callable[[dict], float],
+) -> dict[str, list[float]]:
+    values = {}
+    for language in LANGUAGES:
+        values[language] = [mean(compute_value(result[language]) for result in results.values()) for results in all_results]
+    return values
 
 
 def compute_subset_accuracy(

@@ -8,10 +8,11 @@ from torch import Tensor
 from utils.dataset import LANGUAGES
 from utils.hub import load_bf16_results, load_tensors
 from utils.path import extract_method, extract_model_name, make_result_dir
-from utils.plot import LANGUAGE_COLORS, LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, add_language_legend, save_figure
+from utils.plot import LANGUAGE_COLORS, LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, add_language_legend, compute_figure_size, save_figure
 from utils.score import find_solved_problem_indices
 
-FIGURE_SIZE = (12, 3.5)
+KL_YLIM = (0, 0.3)
+FIGURE_WIDTH = 12
 
 
 @dataclass
@@ -47,7 +48,7 @@ def main() -> None:
     bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, config.bf16_seeds)
     solved_problem_indices = {language: find_solved_problem_indices(bf16_results, language) for language in LANGUAGES}
 
-    fig, axes = plt.subplots(1, len(config.model_hub_paths), figsize=FIGURE_SIZE, sharey=True, squeeze=False, layout="constrained")
+    fig, axes = plt.subplots(1, len(config.model_hub_paths), figsize=compute_figure_size(1, FIGURE_WIDTH), sharey=True, squeeze=False, layout="constrained")
     for ax, model_hub_path in zip(axes[0], config.model_hub_paths):
         tensors = load_tensors(make_result_dir("position_kl", "mgsm"), model_hub_path, config.max_generation_len, config.reasoning_seed)
         for language in LANGUAGES:
@@ -56,6 +57,7 @@ def main() -> None:
         ax.set_title(extract_method(model_hub_path))
         ax.tick_params(axis="x", labelrotation=45)
     axes[0, 0].set_ylabel("kl")
+    axes[0, 0].set_ylim(KL_YLIM)
 
     fig.suptitle("reasoning 위치별 kl")
     labels = {language: f"{LANGUAGE_NAMES[language]} {len(solved_problem_indices[language])}문제" for language in LANGUAGES}

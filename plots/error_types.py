@@ -10,16 +10,16 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from utils.dataset import LANGUAGES
 from utils.hub import load_bf16_results, load_results
 from utils.path import extract_method, extract_model_name, make_result_dir
-from utils.plot import LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, VALUE_FONTSIZE, VALUE_OFFSET, save_figure
+from utils.plot import LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, VALUE_FONTSIZE, VALUE_OFFSET, compute_figure_size, save_figure
 from utils.score import find_solved_problem_indices
 
 ERROR_TYPE_NAMES = {"fact": "사실 오류", "relation": "관계 오류", "target": "목표 오류", "doubt": "조건 무시", "arithmetic": "계산 오류", "other": "기타"}
 ERROR_TYPE_COLORS = {"fact": "#2a78d6", "relation": "#eb6834", "target": "#1baf7a", "doubt": "#eda100", "arithmetic": "#e87ba4", "other": "#a3a29b"}
 MIN_LABEL_RATIO = 0.05
-YMAX_RATIO = 1.15
+ERROR_RATIO_YLIM = (0, 0.5)
 STACK_BAR_WIDTH = 0.5
 STACK_EDGE_WIDTH = 1
-FIGURE_SIZE = (10, 4.5)
+FIGURE_WIDTH = 10
 
 
 @dataclass
@@ -72,20 +72,17 @@ def _plot_error_type_bars(
     groups: list[str],
     ratios: list[dict[str, float]],
 ) -> None:
-    max_total = 0
-    for group_ratios in ratios:
-        max_total = max(max_total, sum(group_ratios.values()))
     for x, group_ratios in enumerate(ratios):
         bottom = 0
         for error_type, color in ERROR_TYPE_COLORS.items():
             ratio = group_ratios[error_type]
             ax.bar(x, ratio, bottom=bottom, width=STACK_BAR_WIDTH, color=color, edgecolor="white", linewidth=STACK_EDGE_WIDTH)
-            if ratio >= max_total * MIN_LABEL_RATIO:
+            if ratio >= ERROR_RATIO_YLIM[1] * MIN_LABEL_RATIO:
                 ax.text(x, bottom + ratio / 2, f"{ratio:.1%}", ha="center", va="center", fontsize=VALUE_FONTSIZE)
             bottom += ratio
         ax.annotate(f"{bottom:.1%}", (x, bottom), xytext=(0, VALUE_OFFSET), textcoords="offset points", ha="center", va="bottom", fontsize=VALUE_FONTSIZE)
     ax.set_xticks(range(len(groups)), groups)
-    ax.set_ylim(0, max_total * YMAX_RATIO)
+    ax.set_ylim(ERROR_RATIO_YLIM)
     ax.yaxis.set_major_formatter(PercentFormatter(1, decimals=0))
 
 
@@ -106,7 +103,7 @@ def main() -> None:
         language_ratios.append(_compute_language_ratios(results, language, num_solved_problems))
     position_ratios = _compute_position_ratios(results, quantized_results, tokenizer)
 
-    fig, axes = plt.subplots(1, 2, figsize=FIGURE_SIZE, layout="constrained")
+    fig, axes = plt.subplots(1, 2, figsize=compute_figure_size(1, FIGURE_WIDTH), layout="constrained")
     _plot_error_type_bars(axes[0], language_labels, language_ratios)
     axes[0].set_title(method)
     axes[0].set_ylabel("오류 비율")
