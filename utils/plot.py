@@ -1,4 +1,5 @@
 from pathlib import Path
+from statistics import mean
 
 from matplotlib.axes import Axes
 from matplotlib.figure import Figure
@@ -46,16 +47,20 @@ plt.rcParams.update({
 })
 
 
-def extract_method(
-    model_hub_path: str,
-) -> str:
-    return model_hub_path.split("/")[0]
-
-
 def _format_percent_point(
     value: float,
 ) -> str:
-    return f"{round(value * 100, 1) + 0.0:.1f}%p"
+    percent_point = round(value * 100, 1)
+    if percent_point == 0:
+        percent_point = 0.0
+    return f"{percent_point:.1f}%p"
+
+
+def _compute_bar_x(
+    group_index: int,
+    language_index: int,
+) -> float:
+    return group_index * GROUP_WIDTH + language_index - (len(LANGUAGES) - 1) / 2
 
 
 def plot_loss_bars(
@@ -64,9 +69,9 @@ def plot_loss_bars(
     losses: dict[str, list[float]],
 ) -> None:
     for language_index, language in enumerate(LANGUAGES):
-        xs = [group_index * GROUP_WIDTH + language_index - (len(LANGUAGES) - 1) / 2 for group_index in range(len(groups))]
-        ax.bar(xs, losses[language], width=1, color=LANGUAGE_COLORS[language])
-        for x, loss in zip(xs, losses[language]):
+        for group_index, loss in enumerate(losses[language]):
+            x = _compute_bar_x(group_index, language_index)
+            ax.bar(x, loss, width=1, color=LANGUAGE_COLORS[language])
             ax.annotate(_format_percent_point(loss), (x, max(loss, 0)), xytext=(0, VALUE_OFFSET), textcoords="offset points", ha="center", va="bottom", fontsize=VALUE_FONTSIZE)
     ax.axhline(0, color=BASELINE_COLOR, linewidth=BASELINE_WIDTH)
     ax.set_xticks([group_index * GROUP_WIDTH for group_index in range(len(groups))], groups)
@@ -83,7 +88,7 @@ def plot_insert_bars(
 ) -> None:
     for language_index, language in enumerate(LANGUAGES):
         for group_index, (no_insert_loss, insert_loss) in enumerate(losses[language]):
-            x = group_index * GROUP_WIDTH + language_index - (len(LANGUAGES) - 1) / 2
+            x = _compute_bar_x(group_index, language_index)
             ax.bar(x, no_insert_loss, width=1, color=LANGUAGE_COLORS[language], alpha=NO_INSERT_ALPHA)
             ax.bar(x, insert_loss, width=1, color=LANGUAGE_COLORS[language])
             text = _format_percent_point(insert_loss)
@@ -124,6 +129,16 @@ def add_language_legend(
             handles.append(Patch(visible=False, label=""))
     handles += extra_handles
     fig.legend(handles=handles, loc="outside lower center", ncol=len(handles) // (max_num_languages + 1))
+
+
+def make_problem_count_labels(
+    problem_indices_by_language: dict[str, dict[int, set[int]]],
+) -> dict[str, str]:
+    labels = {}
+    for language, problem_indices_by_seed in problem_indices_by_language.items():
+        num_problems = round(mean(len(problem_indices) for problem_indices in problem_indices_by_seed.values()))
+        labels[language] = f"{LANGUAGE_NAMES[language]} {num_problems}문제"
+    return labels
 
 
 def save_figure(

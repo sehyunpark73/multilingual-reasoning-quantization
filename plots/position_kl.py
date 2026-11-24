@@ -7,8 +7,8 @@ from torch import Tensor
 
 from utils.dataset import LANGUAGES
 from utils.hub import load_bf16_results, load_tensors
-from utils.path import extract_model_name, make_result_dir
-from utils.plot import LANGUAGE_COLORS, LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, add_language_legend, extract_method, save_figure
+from utils.path import extract_method, extract_model_name, make_result_dir
+from utils.plot import LANGUAGE_COLORS, LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, add_language_legend, save_figure
 from utils.score import find_solved_problem_indices
 
 FIGURE_SIZE = (12, 3.5)

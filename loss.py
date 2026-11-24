@@ -21,8 +21,8 @@ class Config:
 def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
-
     result_dir = make_result_dir("loss", config.benchmark)
+
     results = load_results(result_dir, config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seed_languages = [(seed, language) for seed, result in results.items() for language in LANGUAGES if language not in result]
     if not missing_seed_languages:
@@ -33,6 +33,7 @@ def main() -> None:
         problems = load_mgsm()
     if config.benchmark == "mmlu_prox_lite":
         problems = load_mmlu_prox_lite()
+
     prompt_lists = [problems[language]["prompts"] for _, language in missing_seed_languages]
     prompt_list_seeds = [seed for seed, _ in missing_seed_languages]
     generations = generate(download_model(config.model_hub_path), model_name, prompt_lists, prompt_list_seeds, config.max_generation_len)

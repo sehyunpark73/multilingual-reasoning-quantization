@@ -51,7 +51,9 @@ def _quantize_weight(
         for column_index in range(block_start, block_end):
             group_index = column_index // group_size
             if column_index % group_size == 0:
-                scale[:, group_index], zero[:, group_index] = compute_grid(weight[:, column_index : column_index + group_size], num_bits)
+                group_scale, group_zero = compute_grid(weight[:, column_index : column_index + group_size], num_bits)
+                scale[:, group_index] = group_scale
+                zero[:, group_index] = group_zero
             quantized_weight[:, column_index] = round_to_grid(weight[:, column_index], scale[:, group_index], zero[:, group_index], num_bits)
             error[:, column_index - block_start] = (weight[:, column_index] - quantized_weight[:, column_index]) / hessian_inverse[column_index, column_index]
             weight[:, column_index:block_end] -= torch.outer(error[:, column_index - block_start], hessian_inverse[column_index, column_index:block_end])

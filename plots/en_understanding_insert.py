@@ -1,13 +1,12 @@
 from dataclasses import dataclass
-from statistics import mean
 
 import matplotlib.pyplot as plt
 from simple_parsing import parse
 
 from utils.dataset import LANGUAGES
 from utils.hub import load_bf16_results, load_results
-from utils.path import extract_model_name, make_result_dir
-from utils.plot import INSERT_LOSS_YLIM, LANGUAGE_NAMES, add_language_legend, extract_method, make_insert_handles, plot_insert_bars, save_figure
+from utils.path import extract_method, extract_model_name, make_result_dir
+from utils.plot import INSERT_LOSS_YLIM, add_language_legend, make_insert_handles, make_problem_count_labels, plot_insert_bars, save_figure
 from utils.score import compute_insert_losses, find_common_inserted_problem_indices
 
 EN_INSERT_LOSS_YMIN = -0.2
@@ -49,11 +48,7 @@ def main() -> None:
     ax.set_ylim(EN_INSERT_LOSS_YMIN, INSERT_LOSS_YLIM[1])
 
     fig.suptitle("영어 understanding 삽입")
-    labels = {}
-    for language, problem_indices_by_seed in problem_indices_by_language.items():
-        num_problems = round(mean(len(problem_indices) for problem_indices in problem_indices_by_seed.values()))
-        labels[language] = f"{LANGUAGE_NAMES[language]} {num_problems}문제"
-    add_language_legend(fig, labels, make_insert_handles())
+    add_language_legend(fig, make_problem_count_labels(problem_indices_by_language), make_insert_handles())
     save_figure(fig, model_name, "en_understanding_insert")
 
 

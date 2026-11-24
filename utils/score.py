@@ -1,7 +1,7 @@
 import re
 from statistics import mean
 
-from utils.dataset import MMLU_PROX_LITE_TEMPLATES, Benchmark
+from utils.dataset import LANGUAGES, MMLU_PROX_LITE_TEMPLATES, Benchmark
 
 MGSM_ANSWER_PREFIXES = {"en": "Answer", "zh": "答案", "ja": "答え", "sw": "Jibu", "te": "సమాధానం"}
 
@@ -69,11 +69,22 @@ def find_solved_problem_indices(
     return solved_problem_indices
 
 
-def compute_mean_accuracy(
+def _compute_mean_accuracy(
     results: dict[int, dict],
     language: str,
 ) -> float:
     return mean(result[language]["accuracy"] for result in results.values())
+
+
+def compute_accuracy_losses(
+    bf16_results: dict[int, dict],
+    all_results: list[dict[int, dict]],
+) -> dict[str, list[float]]:
+    losses = {}
+    for language in LANGUAGES:
+        bf16_accuracy = _compute_mean_accuracy(bf16_results, language)
+        losses[language] = [bf16_accuracy - _compute_mean_accuracy(results, language) for results in all_results]
+    return losses
 
 
 def compute_subset_accuracy(
@@ -97,10 +108,9 @@ def compute_insert_losses(
     insert_accuracies = []
     for seed, problem_indices in problem_indices_by_seed.items():
         all_problem_indices = list(range(len(bf16_results[seed][language]["is_corrects"])))
-        insert_language_result = insert_results[seed][language]
         bf16_accuracies.append(compute_subset_accuracy(bf16_results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
         no_insert_accuracies.append(compute_subset_accuracy(no_insert_results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
-        insert_accuracies.append(compute_subset_accuracy(insert_language_result["is_corrects"], insert_language_result["inserted_problem_indices"], problem_indices))
+        insert_accuracies.append(compute_subset_accuracy(insert_results[seed][language]["is_corrects"], insert_results[seed][language]["inserted_problem_indices"], problem_indices))
     return mean(bf16_accuracies) - mean(no_insert_accuracies), mean(bf16_accuracies) - mean(insert_accuracies)
 
 

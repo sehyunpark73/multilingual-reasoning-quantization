@@ -9,6 +9,8 @@ def extract_understanding(
     reasoning: str,
 ) -> str | None:
     for match in STEP_TITLE_PATTERN.finditer(reasoning):
-        if any(word in match.group(1).lower() for word in SOLVING_WORDS):
-            return reasoning[: match.start()]
+        step_title = match.group(1).lower()
+        for word in SOLVING_WORDS:
+            if word in step_title:
+                return reasoning[: match.start()]
     return None

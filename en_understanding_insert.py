@@ -41,7 +41,6 @@ def main() -> None:
         inserted_problem_indices, input_ids_list = tokenize_with_understandings(tokenizer, model_name, problems[language]["prompts"], bf16_results[seed]["en"]["reasonings"])
         all_inserted_problem_indices[seed, language] = inserted_problem_indices
         input_ids_lists.append(input_ids_list)
-
     input_ids_list_seeds = [seed for seed, _ in missing_seed_languages]
     generations = continue_generation(download_model(config.model_hub_path), model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
 

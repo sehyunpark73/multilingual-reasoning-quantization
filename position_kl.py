@@ -48,8 +48,9 @@ def _compute_problem_kls(
 def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
+    result_dir = make_result_dir("position_kl", "mgsm")
 
-    if has_tensors(make_result_dir("position_kl", "mgsm"), config.model_hub_path, config.max_generation_len, config.reasoning_seed):
+    if has_tensors(result_dir, config.model_hub_path, config.max_generation_len, config.reasoning_seed):
         print(f"{config.model_hub_path} already evaluated")
         return
 
@@ -68,7 +69,7 @@ def main() -> None:
         tensors[f"{language}/token_problem_indices"] = token_problem_indices
         print(f"{config.model_hub_path} {language} kl {kls.mean():.4f}")
 
-    save_tensors(make_result_dir("position_kl", "mgsm"), config.model_hub_path, config.max_generation_len, config.reasoning_seed, tensors)
+    save_tensors(result_dir, config.model_hub_path, config.max_generation_len, config.reasoning_seed, tensors)
 
 
 if __name__ == "__main__":

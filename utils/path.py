@@ -20,8 +20,21 @@ def extract_model_name(
     return f"{organization}/{name}"
 
 
+def extract_method(
+    model_hub_path: str,
+) -> str:
+    return model_hub_path.split("/")[0]
+
+
 def make_result_dir(
     result_name: str,
     benchmark: Benchmark,
 ) -> str:
     return f"{result_name}/{benchmark}"
+
+
+def make_reasoning_prefix_result_dir(
+    length_ratio: float,
+) -> str:
+    result_dir = make_result_dir("reasoning_prefix_insert", "mgsm")
+    return f"{result_dir}/length_ratio={length_ratio}"

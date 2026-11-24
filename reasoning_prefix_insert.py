@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
 from utils.hub import download_model, load_bf16_results, load_results, save_result
-from utils.path import extract_model_name, make_result_dir
+from utils.path import extract_model_name, make_reasoning_prefix_result_dir
 from utils.score import score_generation
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.understanding import LENGTH_RATIOS, extract_understanding
@@ -48,20 +48,19 @@ def _tokenize_with_reasoning_prefixes(
 def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
-    result_dir = make_result_dir("reasoning_prefix_insert", "mgsm")
-    result_dirs = {length_ratio: f"{result_dir}/length_ratio={length_ratio}" for length_ratio in LENGTH_RATIOS}
+    result_dirs = {length_ratio: make_reasoning_prefix_result_dir(length_ratio) for length_ratio in LENGTH_RATIOS}
 
     results_by_ratio = {length_ratio: load_results(result_dirs[length_ratio], config.model_hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
     missing_seed_ratios = [(seed, length_ratio) for seed in config.seeds for length_ratio in LENGTH_RATIOS if not results_by_ratio[length_ratio][seed]]
-    if not missing_seed_ratios:
-        print(f"{config.model_hub_path} already evaluated")
-        return
-
-    problems = load_mgsm()
     missing_seeds = []
     for seed, _ in missing_seed_ratios:
         if seed not in missing_seeds:
             missing_seeds.append(seed)
+    if not missing_seeds:
+        print(f"{config.model_hub_path} already evaluated")
+        return
+
+    problems = load_mgsm()
     bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, missing_seeds)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
@@ -72,7 +71,6 @@ def main() -> None:
         inserted_problem_indices, input_ids_list = _tokenize_with_reasoning_prefixes(tokenizer, model_name, problems[language]["prompts"], bf16_results[seed][language]["reasonings"], length_ratio)
         all_inserted_problem_indices[seed, length_ratio, language] = inserted_problem_indices
         input_ids_lists.append(input_ids_list)
-
     input_ids_list_seeds = [seed for seed, _, _ in missing_seed_ratio_languages]
     generations = continue_generation(download_model(config.model_hub_path), model_name, input_ids_lists, input_ids_list_seeds, config.max_generation_len)
 

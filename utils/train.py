@@ -58,6 +58,21 @@ def compute_kl_loss(
     return compute_kls(bf16_logits, logits).sum()
 
 
+def compute_ce_kl_loss(
+    model: PreTrainedModel,
+    bf16_model: PreTrainedModel,
+    prompt_ids: Tensor,
+    en_question_ids: Tensor,
+    reasoning_ids: Tensor,
+    num_en_question_tokens: int,
+    num_reasoning_tokens: int,
+) -> Tensor:
+    prompt_and_en_question_ids = torch.cat([prompt_ids, en_question_ids])
+    ce_loss = compute_ce_loss(model, prompt_ids, en_question_ids) / num_en_question_tokens
+    kl_loss = compute_kl_loss(model, bf16_model, prompt_and_en_question_ids, prompt_and_en_question_ids, reasoning_ids) / num_reasoning_tokens
+    return ce_loss + kl_loss
+
+
 def train(
     weights: list[Tensor],
     samples: list,

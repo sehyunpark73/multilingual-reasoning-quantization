@@ -84,6 +84,7 @@ def _find_smooth(
     unquantized_weights = [linear.weight.clone() for linear in linears]
 
     best_error = math.inf
+    best_smooth = torch.ones_like(abs_mean)
     for smooth_exponent in np.linspace(0.0, 1.0, num_search_steps, endpoint=False):
         smooth = abs_mean.pow(smooth_exponent).clamp(min=MIN_SMOOTH)
         smooth = smooth / (smooth.max() * smooth.min()).sqrt()
@@ -94,7 +95,8 @@ def _find_smooth(
             quantized_output = layer(*layer_args, **layer_kwargs)
             error += (unquantized_output - quantized_output).float().pow(2).mean().item()
         if error < best_error:
-            best_error, best_smooth = error, smooth
+            best_error = error
+            best_smooth = smooth
     for linear, unquantized_weight in zip(linears, unquantized_weights):
         linear.weight.copy_(unquantized_weight)
     return best_smooth
@@ -139,7 +141,8 @@ def main() -> None:
     for layer_index, layer in enumerate(layers):
         with log_time_and_memory(f"layer {layer_index + 1}/{len(layers)}"):
             layer_inputs = capture_layer_inputs(model, layer, chunks)
-            for linears in _find_linear_groups(layer, *layer_inputs[0]):
+            layer_args, layer_kwargs = layer_inputs[0]
+            for linears in _find_linear_groups(layer, layer_args, layer_kwargs):
                 abs_mean, hessian = compute_abs_mean_and_hessian(layer, linears[0], layer_inputs)
                 smooth = _find_smooth(layer, linears, layer_inputs, abs_mean, config.num_bits, config.group_size, config.num_search_steps)
                 for linear in linears:

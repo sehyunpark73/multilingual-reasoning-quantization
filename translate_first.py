@@ -22,14 +22,16 @@ class Config:
 def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
+    result_dir = make_result_dir("translate_first", "mgsm")
 
-    results = load_results(make_result_dir("translate_first", "mgsm"), config.model_hub_path, config.max_generation_len, config.seeds)
+    results = load_results(result_dir, config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seeds = [seed for seed, result in results.items() if not result]
     if not missing_seeds:
         print(f"{config.model_hub_path} already evaluated")
         return
 
     problems = load_mgsm()
+
     missing_seed_languages = [(seed, language) for seed in missing_seeds for language in LANGUAGES]
     prompt_lists = []
     for _, language in missing_seed_languages:
@@ -42,7 +44,7 @@ def main() -> None:
         print(f"{config.model_hub_path} seed {seed} {language} accuracy {results[seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} truncated {mean(generation['is_truncateds']):.2%}")
 
     for seed in missing_seeds:
-        save_result(make_result_dir("translate_first", "mgsm"), config.model_hub_path, config.max_generation_len, seed, results[seed])
+        save_result(result_dir, config.model_hub_path, config.max_generation_len, seed, results[seed])
 
 
 if __name__ == "__main__":

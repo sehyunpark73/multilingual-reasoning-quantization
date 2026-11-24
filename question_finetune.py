@@ -13,7 +13,7 @@ from utils.hub import has_model, load_result, save_model
 from utils.log import log_time_and_memory
 from utils.model import find_linears, load_model
 from utils.path import make_model_hub_path
-from utils.train import compute_ce_loss, compute_kl_loss, make_en_question_samples, train
+from utils.train import compute_ce_kl_loss, compute_ce_loss, make_en_question_samples, train
 
 FINETUNE_NAME = "question_finetune"
 
@@ -47,8 +47,7 @@ def _compute_losses(
         if loss == "ce":
             yield compute_ce_loss(model, prompt_ids, en_question_ids) / num_en_question_tokens
         if loss == "ce_kl":
-            prompt_and_en_question_ids = torch.cat([prompt_ids, en_question_ids])
-            yield compute_ce_loss(model, prompt_ids, en_question_ids) / num_en_question_tokens + compute_kl_loss(model, bf16_model, prompt_and_en_question_ids, prompt_and_en_question_ids, reasoning_ids) / num_reasoning_tokens
+            yield compute_ce_kl_loss(model, bf16_model, prompt_ids, en_question_ids, reasoning_ids, num_en_question_tokens, num_reasoning_tokens)
 
 
 @torch.no_grad()
@@ -76,8 +75,9 @@ def main() -> None:
     if has_model(model_hub_path):
         print(f"{model_hub_path} already finetuned")
         return
-    if any(checkpoint_num_trained_sample % config.batch_size for checkpoint_num_trained_sample in config.checkpoint_num_trained_samples):
-        raise ValueError(f"checkpoint_num_trained_samples must be multiples of batch_size {config.batch_size}")
+    for checkpoint_num_trained_samples in config.checkpoint_num_trained_samples:
+        if checkpoint_num_trained_samples % config.batch_size != 0:
+            raise ValueError(f"checkpoint_num_trained_samples must be multiples of batch_size {config.batch_size}")
 
     set_seed(config.train_seed)
     tokenizer = AutoTokenizer.from_pretrained(config.model_name)

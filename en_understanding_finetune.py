@@ -59,7 +59,9 @@ def _make_en_reasoning_samples(
         if train_part == "reasoning":
             text_ids = tokenize_reasoning(tokenizer, model_name, en_reasoning)
         for language in NON_EN_LANGUAGES:
-            if extract_understanding(gsm8k_reasoning_result[language]["reasonings"][problem_index]) is None or not gsm8k_reasoning_result[language]["is_corrects"][problem_index]:
+            if extract_understanding(gsm8k_reasoning_result[language]["reasonings"][problem_index]) is None:
+                continue
+            if not gsm8k_reasoning_result[language]["is_corrects"][problem_index]:
                 continue
             samples.append((tokenize_prompt(tokenizer, gsm8k_reasoning_result[language]["prompts"][problem_index]), bf16_prompt_ids, text_ids))
     return samples

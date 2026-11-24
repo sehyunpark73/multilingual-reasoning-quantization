@@ -9,8 +9,8 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES
 from utils.hub import load_bf16_results, load_results
-from utils.path import extract_model_name, make_result_dir
-from utils.plot import LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, VALUE_FONTSIZE, VALUE_OFFSET, extract_method, save_figure
+from utils.path import extract_method, extract_model_name, make_result_dir
+from utils.plot import LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, VALUE_FONTSIZE, VALUE_OFFSET, save_figure
 from utils.score import find_solved_problem_indices
 
 ERROR_TYPE_NAMES = {"fact": "사실 오류", "relation": "관계 오류", "target": "목표 오류", "doubt": "조건 무시", "arithmetic": "계산 오류", "other": "기타"}

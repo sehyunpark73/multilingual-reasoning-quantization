@@ -1,13 +1,12 @@
 from dataclasses import dataclass
-from statistics import mean
 
 import matplotlib.pyplot as plt
 from simple_parsing import parse
 
 from utils.dataset import LANGUAGES
 from utils.hub import load_bf16_results, load_results
-from utils.path import extract_model_name, make_result_dir
-from utils.plot import INSERT_LOSS_YLIM, LANGUAGE_NAMES, add_language_legend, extract_method, make_insert_handles, plot_insert_bars, save_figure
+from utils.path import extract_method, extract_model_name, make_reasoning_prefix_result_dir, make_result_dir
+from utils.plot import INSERT_LOSS_YLIM, add_language_legend, make_insert_handles, make_problem_count_labels, plot_insert_bars, save_figure
 from utils.score import compute_insert_losses
 from utils.understanding import LENGTH_RATIOS
 
@@ -31,27 +30,26 @@ def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_paths[0])
     bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, config.seeds)
-    result_dir = make_result_dir("reasoning_prefix_insert", "mgsm")
+    first_ratio_results = load_results(make_reasoning_prefix_result_dir(LENGTH_RATIOS[0]), config.model_hub_paths[0], config.max_generation_len, config.seeds)
+    problem_indices_by_language = {}
+    for language in LANGUAGES:
+        problem_indices_by_language[language] = {seed: set(result[language]["inserted_problem_indices"]) for seed, result in first_ratio_results.items()}
 
     fig, axes = plt.subplots(len(config.model_hub_paths), 1, figsize=FIGURE_SIZE, sharey=True, squeeze=False, layout="constrained")
     for ax, model_hub_path in zip(axes[:, 0], config.model_hub_paths):
         no_insert_results = load_results(make_result_dir("loss", "mgsm"), model_hub_path, config.max_generation_len, config.seeds)
-        insert_results_by_ratio = {length_ratio: load_results(f"{result_dir}/length_ratio={length_ratio}", model_hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
+        insert_results_by_ratio = {length_ratio: load_results(make_reasoning_prefix_result_dir(length_ratio), model_hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
         losses = {language: [] for language in LANGUAGES}
-        num_problems = {}
         for language in LANGUAGES:
-            problem_indices_by_seed = {seed: set(result[language]["inserted_problem_indices"]) for seed, result in insert_results_by_ratio[LENGTH_RATIOS[0]].items()}
-            num_problems[language] = round(mean(len(problem_indices) for problem_indices in problem_indices_by_seed.values()))
             for length_ratio in LENGTH_RATIOS:
-                losses[language].append(compute_insert_losses(bf16_results, no_insert_results, insert_results_by_ratio[length_ratio], language, problem_indices_by_seed))
+                losses[language].append(compute_insert_losses(bf16_results, no_insert_results, insert_results_by_ratio[length_ratio], language, problem_indices_by_language[language]))
         plot_insert_bars(ax, LENGTH_RATIO_NAMES, losses, [])
         ax.set_title(extract_method(model_hub_path))
         ax.set_ylabel("손실")
     axes[0, 0].set_ylim(INSERT_LOSS_YLIM)
 
     fig.suptitle("reasoning 앞부분 길이별 삽입")
-    labels = {language: f"{LANGUAGE_NAMES[language]} {num_problems[language]}문제" for language in LANGUAGES}
-    add_language_legend(fig, labels, make_insert_handles())
+    add_language_legend(fig, make_problem_count_labels(problem_indices_by_language), make_insert_handles())
     save_figure(fig, model_name, "reasoning_prefix_insert")
 
 
