@@ -7,12 +7,31 @@ import torch
 from torch import Tensor
 from torch.nn.functional import cross_entropy
 from torch.optim import AdamW
-from transformers import PreTrainedModel, get_cosine_schedule_with_warmup
+from transformers import PreTrainedModel, PreTrainedTokenizerBase, get_cosine_schedule_with_warmup
 
-from utils.model import compute_logits, forward_reasoning_hiddens
+from utils.dataset import NON_EN_LANGUAGES
+from utils.model import MODEL_CONFIGS, compute_logits, forward_reasoning_hiddens
 from utils.stats import compute_kls
+from utils.tokenize import tokenize_en_question, tokenize_prompt
 
 LOG_INTERVAL_STEPS = 16
+MAX_REASONING_LEN = 2048
+
+
+def make_en_question_samples(
+    tokenizer: PreTrainedTokenizerBase,
+    model_name: str,
+    gsm8k_en_question_insert_reasoning_result: dict,
+) -> list[tuple[Tensor, Tensor, Tensor]]:
+    reasoning_end_id = tokenizer.convert_tokens_to_ids(MODEL_CONFIGS[model_name]["reasoning_end"])
+    samples = []
+    for language in NON_EN_LANGUAGES:
+        language_result = gsm8k_en_question_insert_reasoning_result[language]
+        for prompt, en_question, reasoning_ids in zip(language_result["prompts"], language_result["en_questions"], language_result["reasoning_ids"]):
+            if len(reasoning_ids) >= MAX_REASONING_LEN:
+                continue
+            samples.append((tokenize_prompt(tokenizer, prompt), tokenize_en_question(tokenizer, model_name, en_question), torch.tensor(reasoning_ids + [reasoning_end_id])))
+    return samples
 
 
 def compute_ce_loss(

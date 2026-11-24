@@ -7,17 +7,15 @@ from typing import Literal, TypeAlias
 from simple_parsing import parse
 import torch
 from torch import Tensor
-from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase, set_seed
+from transformers import AutoTokenizer, PreTrainedModel, set_seed
 
 from utils.hub import has_model, load_result, save_model
 from utils.log import log_time_and_memory
-from utils.model import MODEL_CONFIGS, find_linears, load_model
+from utils.model import find_linears, load_model
 from utils.path import make_finetune_model_hub_path
-from utils.tokenize import tokenize_en_question, tokenize_prompt
-from utils.train import compute_ce_loss, compute_kl_loss, train
+from utils.train import compute_ce_loss, compute_kl_loss, make_en_question_samples, train
 
 FINETUNE_NAME = "question_finetune"
-MAX_REASONING_LEN = 2048
 
 _Loss: TypeAlias = Literal["ce", "ce_kl"]
 _Sample: TypeAlias = tuple[Tensor, Tensor, Tensor]
@@ -37,21 +35,6 @@ class Config:
     train_seed: int = 0
 
 
-def _make_samples(
-    tokenizer: PreTrainedTokenizerBase,
-    model_name: str,
-    gsm8k_en_question_insert_reasoning_result: dict,
-) -> list[_Sample]:
-    reasoning_end_id = tokenizer.convert_tokens_to_ids(MODEL_CONFIGS[model_name]["reasoning_end"])
-    samples = []
-    for language_result in gsm8k_en_question_insert_reasoning_result.values():
-        for prompt, en_question, reasoning_ids in zip(language_result["prompts"], language_result["en_questions"], language_result["reasoning_ids"]):
-            if len(reasoning_ids) >= MAX_REASONING_LEN:
-                continue
-            samples.append((tokenize_prompt(tokenizer, prompt), tokenize_en_question(tokenizer, model_name, en_question), torch.tensor(reasoning_ids + [reasoning_end_id])))
-    return samples
-
-
 def _compute_losses(
     model: PreTrainedModel,
     bf16_model: PreTrainedModel | None,
@@ -68,6 +51,7 @@ def _compute_losses(
             yield compute_ce_loss(model, prompt_ids, en_question_ids) / num_en_question_tokens + compute_kl_loss(model, bf16_model, prompt_and_en_question_ids, prompt_and_en_question_ids, reasoning_ids) / num_reasoning_tokens
 
 
+@torch.no_grad()
 def _save_checkpoint(
     model: PreTrainedModel,
     weights: list[Tensor],
@@ -80,9 +64,8 @@ def _save_checkpoint(
     model.to(torch.bfloat16)
     save_model(make_finetune_model_hub_path(FINETUNE_NAME, model_name, {"loss": loss, "num_samples": num_samples, "num_trained_samples": num_trained_samples}), model)
     model.float()
-    with torch.no_grad():
-        for weight, fp32_weight in zip(weights, fp32_weights):
-            weight.copy_(fp32_weight)
+    for weight, fp32_weight in zip(weights, fp32_weights):
+        weight.copy_(fp32_weight)
 
 
 def main() -> None:
@@ -103,7 +86,7 @@ def main() -> None:
     bf16_model = None if config.loss == "ce" else load_model(config.model_name)
 
     gsm8k_en_question_insert_reasoning_result = load_result(config.gsm8k_en_question_insert_reasoning_hub_path)
-    all_samples = _make_samples(tokenizer, config.model_name, gsm8k_en_question_insert_reasoning_result)
+    all_samples = make_en_question_samples(tokenizer, config.model_name, gsm8k_en_question_insert_reasoning_result)
     samples = random.sample(all_samples, config.num_samples)
     print(f"{model_hub_path} samples {len(samples)} of {len(all_samples)}")
 

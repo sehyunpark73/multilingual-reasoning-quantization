@@ -94,12 +94,13 @@ def generate(
     prompt_list_seeds: list[int],
     max_generation_len: int,
     max_num_sequences: int | None = None,
+    is_reasoning_ids_returned: bool = False,
 ) -> list[dict]:
     model = _load_vllm(model_path, model_name, max_num_sequences)
     messages, sampling_params = _make_chat_inputs(model_name, prompt_lists, prompt_list_seeds, max_generation_len)
     with log_time(model_path):
         outputs = model.chat(messages, sampling_params, use_tqdm=True, chat_template_kwargs={"enable_thinking": True})
-    return _split_outputs(outputs, model.get_tokenizer(), model_name, prompt_lists, is_reasoning_ids_returned=False)
+    return _split_outputs(outputs, model.get_tokenizer(), model_name, prompt_lists, is_reasoning_ids_returned)
 
 
 def generate_without_thinking(

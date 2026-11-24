@@ -2,41 +2,32 @@ from dataclasses import dataclass
 
 from simple_parsing import parse
 import torch
-from torch import Tensor
 
-from utils.hub import save_model
+from utils.hub import download_model, save_model
 from utils.model import find_linears, load_model
 from utils.path import make_model_hub_path
-
-MXFP4_GROUP_SIZE = 32
-MIN_WEIGHT_MAX = 2**-125
-FP4_MAX_EXPONENT = 2
-FP4_MAX_MAGNITUDE = 6
+from utils.quantize import quantize_mxfp4
 
 
 @dataclass
 class Config:
     model_name: str = "google/gemma-4-E2B-it"
-
-
-def _quantize_weight(
-    weight: Tensor,
-) -> Tensor:
-    groups = weight.float().reshape(weight.shape[0], -1, MXFP4_GROUP_SIZE)
-    weight_max = groups.abs().amax(dim=-1, keepdim=True).clamp(min=MIN_WEIGHT_MAX)
-    scale = 2 ** (torch.floor(torch.log2(weight_max)) - FP4_MAX_EXPONENT)
-    magnitude = (groups.abs() / scale).clamp(max=FP4_MAX_MAGNITUDE)
-    step = torch.where(magnitude < 2, 0.5, torch.where(magnitude < 4, 1.0, 2.0))
-    return (torch.sign(groups) * torch.round(magnitude / step) * step * scale).reshape(weight.shape)
+    finetune_model_hub_path: str | None = None
 
 
 @torch.no_grad()
 def main() -> None:
     config = parse(Config)
-    model = load_model(config.model_name)
+    if config.finetune_model_hub_path is None:
+        model = load_model(config.model_name)
+        model_hub_path = make_model_hub_path("mxfp4", config.model_name)
+    else:
+        model = load_model(download_model(config.finetune_model_hub_path))
+        finetune_name, model_name_and_settings = config.finetune_model_hub_path.split("/", 1)
+        model_hub_path = f"{finetune_name}_mxfp4/{model_name_and_settings}"
     for linear in find_linears(model.model.language_model.layers):
-        linear.weight.copy_(_quantize_weight(linear.weight))
-    save_model(make_model_hub_path("mxfp4", config.model_name), model)
+        linear.weight.copy_(quantize_mxfp4(linear.weight))
+    save_model(model_hub_path, model)
 
 
 if __name__ == "__main__":

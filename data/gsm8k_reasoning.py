@@ -29,7 +29,7 @@ def main() -> None:
     problems = load_translated_gsm8k()
     prompt_lists = [problems[language]["prompts"] for language in LANGUAGES]
     prompt_list_seeds = [config.seed] * len(LANGUAGES)
-    generations = generate(config.model_name, config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len)
+    generations = generate(config.model_name, config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len, is_reasoning_ids_returned=True)
 
     full_result = {}
     for language, generation in zip(LANGUAGES, generations):
@@ -42,6 +42,7 @@ def main() -> None:
         result[language] = {
             "prompts": [problems[language]["prompts"][problem_index] for problem_index in en_correct_problem_indices],
             "reasonings": [full_result[language]["reasonings"][problem_index] for problem_index in en_correct_problem_indices],
+            "reasoning_ids": [full_result[language]["reasoning_ids"][problem_index] for problem_index in en_correct_problem_indices],
             "is_corrects": [full_result[language]["is_corrects"][problem_index] for problem_index in en_correct_problem_indices],
         }
 
