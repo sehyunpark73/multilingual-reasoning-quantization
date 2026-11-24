@@ -5,12 +5,11 @@ from simple_parsing import parse
 import torch
 from torch import Tensor
 
-from utils.capture import capture_layer_inputs
 from utils.dataset import load_wikipedia
-from utils.grid import find_grid, round_to_grid
+from utils.grid import compute_grid, round_to_grid
 from utils.hub import make_hub_path, save_model
 from utils.log import log_time_and_memory
-from utils.model import find_linears, load_model
+from utils.model import capture_layer_inputs, find_linears, load_model
 from utils.stats import compute_abs_mean_and_hessian
 
 
@@ -52,7 +51,7 @@ def _quantize_weight(
         for column_index in range(block_start, block_end):
             group_index = column_index // group_size
             if column_index % group_size == 0:
-                scale[:, group_index], zero[:, group_index] = find_grid(weight[:, column_index : column_index + group_size], num_bits)
+                scale[:, group_index], zero[:, group_index] = compute_grid(weight[:, column_index : column_index + group_size], num_bits)
 
             quantized[:, column_index] = round_to_grid(weight[:, column_index], scale[:, group_index], zero[:, group_index], num_bits)
             error[:, column_index - block_start] = (weight[:, column_index] - quantized[:, column_index]) / hessian_inv[column_index, column_index]

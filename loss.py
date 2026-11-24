@@ -18,6 +18,7 @@ class Config:
     num_bits: int = 4
     group_size: int = 128
     num_chunks: int = 128
+    hub_path: str | None = None
     benchmark: Literal["mgsm", "mmlu_prox_lite"] = "mgsm"
     max_generation_len: int = 16384
     seeds: tuple[int, ...] = (0, 1, 2)
@@ -36,7 +37,7 @@ def _find_missing_seed_languages(
 
 def main() -> None:
     config = parse(Config)
-    hub_path = make_hub_path(config.method, config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks)
+    hub_path = config.hub_path or make_hub_path(config.method, config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks)
 
     result_dir = f"loss/{config.benchmark}"
     results = load_results(result_dir, hub_path, config.max_generation_len, config.seeds)
@@ -48,7 +49,7 @@ def main() -> None:
     problems = load_mgsm() if config.benchmark == "mgsm" else load_mmlu_prox_lite()
     prompt_lists = [problems[language]["prompts"] for _, language in missing_seed_languages]
     prompt_list_seeds = [seed for seed, _ in missing_seed_languages]
-    model_path = config.model_name if config.method == "bf16" else download_model(hub_path)
+    model_path = config.model_name if hub_path == make_hub_path("bf16", config.model_name) else download_model(hub_path)
     generations = generate(model_path, config.model_name, prompt_lists, prompt_list_seeds, config.max_generation_len)
 
     for (seed, language), generation in zip(missing_seed_languages, generations):

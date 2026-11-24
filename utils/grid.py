@@ -2,7 +2,7 @@ import torch
 from torch import Tensor
 
 
-def find_grid(
+def compute_grid(
     weight: Tensor,
     num_bits: int,
 ) -> tuple[Tensor, Tensor]:

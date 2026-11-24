@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from datasets import load_dataset
 import torch
 from torch import Tensor
@@ -27,6 +29,7 @@ MMLU_PROX_LITE_SUBJECTS = {
 }
 MAX_NUM_OPTIONS = 10
 SHUFFLE_BUFFER_SIZE = 10000
+MCOT_BATCH_SIZE = 100000
 
 
 def load_wikipedia(
@@ -80,4 +83,28 @@ def load_mmlu_prox_lite() -> dict[str, dict[str, list]]:
                 prompt += f"{chr(ord('A') + index)}. {option}\n"
             problems[language]["prompts"].append(prompt)
             problems[language]["answers"].append(row["answer"])
+    return problems
+
+
+def _load_mcot_translations() -> dict[str, dict[str, str]]:
+    mcot = load_dataset("laihuiyuan/mCoT-MATH", data_files="train_part_*.jsonl", split="train").select_columns(["question", "lang-id"])
+    translations_by_mcot_id = defaultdict(dict)
+    for batch in mcot.iter(batch_size=MCOT_BATCH_SIZE):
+        for question, language_id in zip(batch["question"], batch["lang-id"]):
+            language, mcot_id = language_id.split("-")
+            if language in LANGUAGES:
+                translations_by_mcot_id[mcot_id][language] = question.strip()
+    return translations_by_mcot_id
+
+
+def load_gsm8k() -> dict[str, dict[str, list]]:
+    translations_by_en_question = {" ".join(translations["en"].split()): translations for translations in _load_mcot_translations().values()}
+    problems = {language: {"questions": [], "prompts": [], "answers": []} for language in LANGUAGES}
+    for row in load_dataset("openai/gsm8k", "main", split="train"):
+        translations = translations_by_en_question[" ".join(row["question"].split())]
+        answer = int(row["answer"].split("####")[-1].replace(",", ""))
+        for language in LANGUAGES:
+            problems[language]["questions"].append(translations[language])
+            problems[language]["prompts"].append(MGSM_PROMPTS[language].format(question=translations[language]))
+            problems[language]["answers"].append(answer)
     return problems

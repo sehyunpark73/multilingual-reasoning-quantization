@@ -8,10 +8,10 @@ from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.hub import download_model, load_results, make_hub_path, save_tensors, tensors_exist
-from utils.kl import compute_reasoning_kls
 from utils.log import log_time_and_memory
 from utils.model import load_model
 from utils.score import find_solved_problem_indices
+from utils.stats import compute_reasoning_kls
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 
 RESULT_DIR = "position_kl/mgsm"

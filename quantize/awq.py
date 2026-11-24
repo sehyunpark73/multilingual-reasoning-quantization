@@ -8,12 +8,11 @@ import torch
 from torch import Tensor
 from torch.nn import Linear, Module
 
-from utils.capture import capture_layer_inputs
 from utils.dataset import load_wikipedia
-from utils.grid import find_grid, round_to_grid
+from utils.grid import compute_grid, round_to_grid
 from utils.hub import make_hub_path, save_model
 from utils.log import log_time_and_memory
-from utils.model import find_linears, load_model
+from utils.model import capture_layer_inputs, find_linears, load_model
 from utils.stats import compute_abs_mean_and_hessian
 
 
@@ -65,7 +64,7 @@ def _quantize_weight(
 ) -> Tensor:
     groups = (weight.float() * smooth).reshape(weight.shape[0], -1, group_size)
     clipped_groups = groups if clip is None else groups.clamp(-clip[..., None], clip[..., None])
-    scale, zero = find_grid(clipped_groups, num_bits)
+    scale, zero = compute_grid(clipped_groups, num_bits)
     return round_to_grid(groups, scale[..., None], zero[..., None], num_bits).reshape(weight.shape) / smooth
 
 
@@ -82,8 +81,8 @@ def _find_smooth(
     unquantized_weights = [linear.weight.clone() for linear in linears]
 
     best_error = math.inf
-    for ratio in np.linspace(0.0, 1.0, num_search_steps, endpoint=False):
-        smooth = abs_mean.pow(ratio).clamp(min=1e-4)
+    for smooth_exponent in np.linspace(0.0, 1.0, num_search_steps, endpoint=False):
+        smooth = abs_mean.pow(smooth_exponent).clamp(min=1e-4)
         smooth = smooth / (smooth.max() * smooth.min()).sqrt()
         for linear, unquantized_weight in zip(linears, unquantized_weights):
             linear.weight.copy_(_quantize_weight(unquantized_weight, smooth, None, num_bits, group_size))
@@ -118,7 +117,7 @@ def _find_clip(
     best_error = torch.full_like(weight_max, math.inf)
     for shrink in np.linspace(1.0, 1.0 - max_shrink, int(max_shrink * num_search_steps), endpoint=False):
         clip = weight_max * shrink
-        scale, zero = find_grid(groups.clamp(-clip[..., None], clip[..., None]), num_bits)
+        scale, zero = compute_grid(groups.clamp(-clip[..., None], clip[..., None]), num_bits)
         quantized_groups = round_to_grid(groups, scale[..., None], zero[..., None], num_bits)
         delta = quantized_groups - groups
         error = torch.einsum("ogi,gij,ogj->og", delta, hessian_blocks, delta)

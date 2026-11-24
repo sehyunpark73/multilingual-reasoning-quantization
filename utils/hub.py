@@ -57,6 +57,12 @@ def download_model(
     return str(Path(snapshot_download(REPO_NAME, allow_patterns=[f"{hub_path}/*.json", f"{hub_path}/model*.safetensors"])) / hub_path)
 
 
+def model_exists(
+    hub_path: str,
+) -> bool:
+    return HfApi().file_exists(REPO_NAME, f"{hub_path}/config.json")
+
+
 def save_result(
     result_dir: str,
     hub_path: str,

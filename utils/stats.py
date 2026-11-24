@@ -1,6 +1,10 @@
 import torch
 from torch import Tensor
 from torch.nn import Linear, Module
+from torch.nn.functional import log_softmax
+from transformers import PreTrainedModel
+
+from utils.model import compute_logits, forward_reasoning_hiddens
 
 
 def compute_abs_mean_and_hessian(
@@ -27,3 +31,20 @@ def compute_abs_mean_and_hessian(
         layer(*layer_args, **layer_kwargs)
     handle.remove()
     return abs_sum / num_tokens, hessian
+
+
+def compute_reasoning_kls(
+    bf16_model: PreTrainedModel,
+    quantized_model: PreTrainedModel,
+    input_ids: Tensor,
+    prompt_len: int,
+    logit_batch_len: int,
+) -> Tensor:
+    bf16_hiddens = forward_reasoning_hiddens(bf16_model, input_ids, prompt_len)
+    quantized_hiddens = forward_reasoning_hiddens(quantized_model, input_ids, prompt_len)
+    kls = []
+    for batch_start in range(0, len(bf16_hiddens), logit_batch_len):
+        bf16_logprobs = log_softmax(compute_logits(bf16_model, bf16_hiddens[batch_start : batch_start + logit_batch_len]), dim=-1)
+        quantized_logprobs = log_softmax(compute_logits(quantized_model, quantized_hiddens[batch_start : batch_start + logit_batch_len]), dim=-1)
+        kls.append((bf16_logprobs.exp() * (bf16_logprobs - quantized_logprobs)).sum(dim=-1).cpu())
+    return torch.cat(kls)
