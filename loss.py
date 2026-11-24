@@ -6,7 +6,7 @@ from simple_parsing import parse
 from utils.dataset import LANGUAGES, Benchmark, load_mgsm, load_mmlu_prox_lite
 from utils.generate import generate
 from utils.hub import download_model, load_results, save_result
-from utils.path import extract_model_name, make_loss_result_dir
+from utils.path import extract_model_name, make_result_dir
 from utils.score import score_generation
 
 
@@ -22,7 +22,7 @@ def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
 
-    result_dir = make_loss_result_dir(config.benchmark)
+    result_dir = make_result_dir("loss", config.benchmark)
     results = load_results(result_dir, config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seed_languages = [(seed, language) for seed, result in results.items() for language in LANGUAGES if language not in result]
     if not missing_seed_languages:

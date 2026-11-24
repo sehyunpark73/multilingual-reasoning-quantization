@@ -15,7 +15,7 @@ from utils.dataset import NON_EN_LANGUAGES
 from utils.hub import has_model, load_result, save_model
 from utils.log import log_time_and_memory
 from utils.model import MODEL_CONFIGS, find_linears, load_model
-from utils.path import make_finetune_model_hub_path
+from utils.path import make_model_hub_path
 from utils.quantize import quantize_mxfp4
 from utils.tokenize import tokenize_prompt
 from utils.train import MAX_REASONING_LEN, compute_ce_loss, compute_kl_loss, make_en_question_samples, train
@@ -99,7 +99,7 @@ def _save_checkpoint(
         parametrize.remove_parametrizations(linear, "weight", leave_parametrized=False)
         linear.weight.copy_(quantize_mxfp4(linear.weight))
     model.to(torch.bfloat16)
-    save_model(make_finetune_model_hub_path(FINETUNE_NAME, model_name, {"loss": loss, "num_samples": num_samples, "num_trained_samples": num_trained_samples}), model)
+    save_model(make_model_hub_path(FINETUNE_NAME, model_name, {"loss": loss, "num_samples": num_samples, "num_trained_samples": num_trained_samples}), model)
     model.float()
     for linear, weight, fp32_weight in zip(linears, weights, fp32_weights):
         weight.copy_(fp32_weight)
@@ -109,7 +109,7 @@ def _save_checkpoint(
 def main() -> None:
     config = parse(Config)
     num_trained_samples = config.num_epochs * config.num_samples
-    model_hub_path = make_finetune_model_hub_path(FINETUNE_NAME, config.model_name, {"loss": config.loss, "num_samples": config.num_samples, "num_trained_samples": num_trained_samples})
+    model_hub_path = make_model_hub_path(FINETUNE_NAME, config.model_name, {"loss": config.loss, "num_samples": config.num_samples, "num_trained_samples": num_trained_samples})
 
     if has_model(model_hub_path):
         print(f"{model_hub_path} already finetuned")

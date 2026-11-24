@@ -9,7 +9,7 @@ from utils.dataset import LANGUAGES, load_mgsm
 from utils.hub import download_model, has_tensors, load_bf16_results, save_tensors
 from utils.log import log_time_and_memory
 from utils.model import load_model
-from utils.path import RESULT_DIRS, extract_model_name
+from utils.path import extract_model_name, make_result_dir
 from utils.score import find_solved_problem_indices
 from utils.stats import compute_reasoning_kls
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
@@ -49,7 +49,7 @@ def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
 
-    if has_tensors(RESULT_DIRS["position_kl"], config.model_hub_path, config.max_generation_len, config.reasoning_seed):
+    if has_tensors(make_result_dir("position_kl", "mgsm"), config.model_hub_path, config.max_generation_len, config.reasoning_seed):
         print(f"{config.model_hub_path} already evaluated")
         return
 
@@ -68,7 +68,7 @@ def main() -> None:
         tensors[f"{language}/token_problem_indices"] = token_problem_indices
         print(f"{config.model_hub_path} {language} kl {kls.mean():.4f}")
 
-    save_tensors(RESULT_DIRS["position_kl"], config.model_hub_path, config.max_generation_len, config.reasoning_seed, tensors)
+    save_tensors(make_result_dir("position_kl", "mgsm"), config.model_hub_path, config.max_generation_len, config.reasoning_seed, tensors)
 
 
 if __name__ == "__main__":

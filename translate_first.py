@@ -6,7 +6,7 @@ from simple_parsing import parse
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import generate
 from utils.hub import download_model, load_results, save_result
-from utils.path import RESULT_DIRS, extract_model_name
+from utils.path import extract_model_name, make_result_dir
 from utils.score import score_generation
 
 TRANSLATE_FIRST_INSTRUCTION = "Start your thinking by writing the problem above in English, then solve it."
@@ -23,7 +23,7 @@ def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
 
-    results = load_results(RESULT_DIRS["translate_first"], config.model_hub_path, config.max_generation_len, config.seeds)
+    results = load_results(make_result_dir("translate_first", "mgsm"), config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seeds = [seed for seed, result in results.items() if not result]
     if not missing_seeds:
         print(f"{config.model_hub_path} already evaluated")
@@ -42,7 +42,7 @@ def main() -> None:
         print(f"{config.model_hub_path} seed {seed} {language} accuracy {results[seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} truncated {mean(generation['is_truncateds']):.2%}")
 
     for seed in missing_seeds:
-        save_result(RESULT_DIRS["translate_first"], config.model_hub_path, config.max_generation_len, seed, results[seed])
+        save_result(make_result_dir("translate_first", "mgsm"), config.model_hub_path, config.max_generation_len, seed, results[seed])
 
 
 if __name__ == "__main__":

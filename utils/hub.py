@@ -9,9 +9,27 @@ from torch import Tensor
 from transformers import PreTrainedModel
 
 from utils.dataset import Benchmark
-from utils.path import extract_model_name, make_loss_result_dir, make_model_hub_path, make_result_path, make_tensors_path
+from utils.path import extract_model_name, make_model_hub_path, make_result_dir
 
 REPO_NAME = "sehyunpark73/multilingual-reasoning-quantization"
+
+
+def _make_result_path(
+    result_dir: str,
+    model_hub_path: str,
+    max_generation_len: int,
+    seed: int,
+) -> str:
+    return f"{result_dir}/{model_hub_path}/max_generation_len={max_generation_len},seed={seed}.json"
+
+
+def _make_tensors_path(
+    result_dir: str,
+    model_hub_path: str,
+    max_generation_len: int,
+    reasoning_seed: int,
+) -> str:
+    return f"{result_dir}/{model_hub_path}/max_generation_len={max_generation_len},reasoning_seed={reasoning_seed}.safetensors"
 
 
 def has_model(
@@ -45,7 +63,7 @@ def has_result(
     max_generation_len: int,
     seed: int,
 ) -> bool:
-    return HfApi().file_exists(REPO_NAME, make_result_path(result_dir, model_hub_path, max_generation_len, seed))
+    return HfApi().file_exists(REPO_NAME, _make_result_path(result_dir, model_hub_path, max_generation_len, seed))
 
 
 def load_result(
@@ -63,7 +81,7 @@ def load_results(
     results = {}
     for seed in seeds:
         if has_result(result_dir, model_hub_path, max_generation_len, seed):
-            results[seed] = load_result(make_result_path(result_dir, model_hub_path, max_generation_len, seed))
+            results[seed] = load_result(_make_result_path(result_dir, model_hub_path, max_generation_len, seed))
         else:
             results[seed] = {}
     return results
@@ -75,7 +93,7 @@ def load_bf16_results(
     max_generation_len: int,
     seeds: Sequence[int],
 ) -> dict[int, dict]:
-    return load_results(make_loss_result_dir(benchmark), make_model_hub_path("bf16", model_name), max_generation_len, seeds)
+    return load_results(make_result_dir("loss", benchmark), make_model_hub_path("bf16", model_name), max_generation_len, seeds)
 
 
 def save_result(
@@ -85,7 +103,7 @@ def save_result(
     seed: int,
     result: dict,
 ) -> None:
-    path = make_result_path(result_dir, model_hub_path, max_generation_len, seed)
+    path = _make_result_path(result_dir, model_hub_path, max_generation_len, seed)
     HfApi().upload_file(path_or_fileobj=json.dumps(result, indent=2, ensure_ascii=False).encode(), path_in_repo=path, repo_id=REPO_NAME, commit_message=f"save {path}")
     print(f"saved {path}")
 
@@ -96,7 +114,7 @@ def has_tensors(
     max_generation_len: int,
     reasoning_seed: int,
 ) -> bool:
-    return HfApi().file_exists(REPO_NAME, make_tensors_path(result_dir, model_hub_path, max_generation_len, reasoning_seed))
+    return HfApi().file_exists(REPO_NAME, _make_tensors_path(result_dir, model_hub_path, max_generation_len, reasoning_seed))
 
 
 def load_tensors(
@@ -105,7 +123,7 @@ def load_tensors(
     max_generation_len: int,
     reasoning_seed: int,
 ) -> dict[str, Tensor]:
-    return load_file(hf_hub_download(REPO_NAME, make_tensors_path(result_dir, model_hub_path, max_generation_len, reasoning_seed)))
+    return load_file(hf_hub_download(REPO_NAME, _make_tensors_path(result_dir, model_hub_path, max_generation_len, reasoning_seed)))
 
 
 def save_tensors(
@@ -115,6 +133,6 @@ def save_tensors(
     reasoning_seed: int,
     tensors: dict[str, Tensor],
 ) -> None:
-    path = make_tensors_path(result_dir, model_hub_path, max_generation_len, reasoning_seed)
+    path = _make_tensors_path(result_dir, model_hub_path, max_generation_len, reasoning_seed)
     HfApi().upload_file(path_or_fileobj=save(tensors), path_in_repo=path, repo_id=REPO_NAME, commit_message=f"save {path}")
     print(f"saved {path}")

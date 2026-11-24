@@ -6,7 +6,7 @@ from simple_parsing import parse
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import generate
 from utils.hub import load_bf16_results, load_results, save_result
-from utils.path import RESULT_DIRS, extract_model_name, make_loss_result_dir
+from utils.path import extract_model_name, make_result_dir
 from utils.score import find_solved_problem_indices
 
 ERROR_TYPES = ["fact", "relation", "target", "doubt", "arithmetic", "other"]
@@ -107,7 +107,7 @@ def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
 
-    results = load_results(RESULT_DIRS["error_types"], config.model_hub_path, config.max_generation_len, config.seeds)
+    results = load_results(make_result_dir("error_types", "mgsm"), config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seeds = [seed for seed, result in results.items() if not result]
     if not missing_seeds:
         print(f"{config.model_hub_path} already evaluated")
@@ -115,7 +115,7 @@ def main() -> None:
 
     problems = load_mgsm()
     bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, config.bf16_seeds)
-    quantized_results = load_results(make_loss_result_dir("mgsm"), config.model_hub_path, config.max_generation_len, missing_seeds)
+    quantized_results = load_results(make_result_dir("loss", "mgsm"), config.model_hub_path, config.max_generation_len, missing_seeds)
 
     missing_seed_languages = [(seed, language) for seed in missing_seeds for language in LANGUAGES]
     wrong_problem_indices = {}
@@ -134,7 +134,7 @@ def main() -> None:
         print(f"{config.model_hub_path} seed {seed} {language} judged {len(error_types)} unparsed {error_types.count(None)}")
 
     for seed in missing_seeds:
-        save_result(RESULT_DIRS["error_types"], config.model_hub_path, config.max_generation_len, seed, results[seed])
+        save_result(make_result_dir("error_types", "mgsm"), config.model_hub_path, config.max_generation_len, seed, results[seed])
 
 
 if __name__ == "__main__":

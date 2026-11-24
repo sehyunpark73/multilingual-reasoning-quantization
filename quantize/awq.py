@@ -146,7 +146,8 @@ def main() -> None:
                     clip = _find_clip(linear.weight, smooth, hessian, config.num_bits, config.group_size, config.num_search_steps, config.max_shrink)
                     linear.weight.copy_(_quantize_weight(linear.weight, smooth, clip, config.num_bits, config.group_size))
 
-    save_model(make_model_hub_path("awq", config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks), model)
+    settings = {"calibration_languages": "_".join(config.calibration_languages), "num_bits": config.num_bits, "group_size": config.group_size, "num_chunks": config.num_chunks}
+    save_model(make_model_hub_path("awq", config.model_name, settings), model)
 
 
 if __name__ == "__main__":

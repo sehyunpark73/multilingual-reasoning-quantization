@@ -6,7 +6,7 @@ from simple_parsing import parse
 
 from utils.dataset import LANGUAGES, Benchmark
 from utils.hub import load_bf16_results, load_results
-from utils.path import extract_model_name, make_loss_result_dir
+from utils.path import extract_model_name, make_result_dir
 from utils.plot import LANGUAGE_NAMES, add_language_legend, extract_method, plot_loss_bars, save_figure
 
 BENCHMARKS: list[Benchmark] = ["mgsm", "mmlu_prox_lite"]
@@ -42,7 +42,7 @@ def _compute_losses(
     bf16_results = load_bf16_results(benchmark, model_name, max_generation_len, BF16_SEEDS[benchmark])
     losses = {language: [] for language in LANGUAGES}
     for model_hub_path in model_hub_paths:
-        results = load_results(make_loss_result_dir(benchmark), model_hub_path, max_generation_len, SEEDS[benchmark])
+        results = load_results(make_result_dir("loss", benchmark), model_hub_path, max_generation_len, SEEDS[benchmark])
         for language in LANGUAGES:
             losses[language].append(_compute_mean_accuracy(bf16_results, language) - _compute_mean_accuracy(results, language))
     return losses

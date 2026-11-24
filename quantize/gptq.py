@@ -73,7 +73,8 @@ def main() -> None:
                 _, hessian = compute_abs_mean_and_hessian(layer, linear, layer_inputs)
                 linear.weight.copy_(_quantize_weight(linear.weight, hessian, config.num_bits, config.group_size, config.block_size, config.damp_ratio))
 
-    save_model(make_model_hub_path("gptq", config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks), model)
+    settings = {"calibration_languages": "_".join(config.calibration_languages), "num_bits": config.num_bits, "group_size": config.group_size, "num_chunks": config.num_chunks}
+    save_model(make_model_hub_path("gptq", config.model_name, settings), model)
 
 
 if __name__ == "__main__":

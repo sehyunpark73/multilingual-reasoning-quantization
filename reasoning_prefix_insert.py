@@ -9,7 +9,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
 from utils.hub import download_model, load_bf16_results, load_results, save_result
-from utils.path import RESULT_DIRS, extract_model_name
+from utils.path import extract_model_name, make_result_dir
 from utils.score import score_generation
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.understanding import extract_understanding
@@ -50,7 +50,7 @@ def _tokenize_with_reasoning_prefixes(
 def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
-    result_dir = RESULT_DIRS["reasoning_prefix_insert"]
+    result_dir = make_result_dir("reasoning_prefix_insert", "mgsm")
     result_dirs = {length_ratio: f"{result_dir}/length_ratio={length_ratio}" for length_ratio in LENGTH_RATIOS}
 
     results_by_ratio = {length_ratio: load_results(result_dirs[length_ratio], config.model_hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}

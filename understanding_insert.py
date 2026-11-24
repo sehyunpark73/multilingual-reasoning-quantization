@@ -10,7 +10,7 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
 from utils.hub import download_model, load_bf16_results, load_results, save_result
-from utils.path import RESULT_DIRS, extract_model_name
+from utils.path import extract_model_name, make_result_dir
 from utils.score import score_generation
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.understanding import extract_understanding
@@ -47,9 +47,9 @@ def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
     if config.understanding_language == "native":
-        result_dir = RESULT_DIRS["understanding_insert"]
+        result_dir = make_result_dir("understanding_insert", "mgsm")
     if config.understanding_language == "en":
-        result_dir = RESULT_DIRS["en_understanding_insert"]
+        result_dir = make_result_dir("en_understanding_insert", "mgsm")
 
     results = load_results(result_dir, config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seeds = [seed for seed, result in results.items() if not result]

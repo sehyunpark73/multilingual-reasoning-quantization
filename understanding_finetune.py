@@ -13,7 +13,7 @@ from utils.dataset import NON_EN_LANGUAGES
 from utils.hub import has_model, load_result, save_model
 from utils.log import log_time_and_memory
 from utils.model import MODEL_CONFIGS, find_linears, load_model
-from utils.path import make_finetune_model_hub_path
+from utils.path import make_model_hub_path
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.train import compute_ce_loss, compute_kl_loss, train
 from utils.understanding import extract_understanding
@@ -132,7 +132,7 @@ def _compute_losses(
 
 def main() -> None:
     config = parse(Config)
-    model_hub_path = make_finetune_model_hub_path(FINETUNE_NAME, config.model_name, {"loss": config.loss, "reasoning_source": config.reasoning_source, "train_part": config.train_part})
+    model_hub_path = make_model_hub_path(FINETUNE_NAME, config.model_name, {"loss": config.loss, "reasoning_source": config.reasoning_source, "train_part": config.train_part})
 
     if has_model(model_hub_path):
         print(f"{model_hub_path} already finetuned")

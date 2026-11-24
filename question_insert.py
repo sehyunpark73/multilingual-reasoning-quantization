@@ -8,7 +8,7 @@ from transformers import AutoTokenizer
 from utils.dataset import LANGUAGES, NON_EN_LANGUAGES, load_mgsm
 from utils.generate import continue_generation
 from utils.hub import download_model, load_result, load_results, save_result
-from utils.path import RESULT_DIRS, extract_model_name
+from utils.path import extract_model_name, make_result_dir
 from utils.score import score_generation
 from utils.tokenize import tokenize_with_en_questions
 
@@ -43,9 +43,9 @@ def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
     if config.en_question == "mgsm":
-        result_dir = RESULT_DIRS["en_question_insert"]
+        result_dir = make_result_dir("en_question_insert", "mgsm")
     if config.en_question == "bf16_translation":
-        result_dir = RESULT_DIRS["bf16_translation_insert"]
+        result_dir = make_result_dir("bf16_translation_insert", "mgsm")
 
     results = load_results(result_dir, config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seeds = [seed for seed, result in results.items() if not result]

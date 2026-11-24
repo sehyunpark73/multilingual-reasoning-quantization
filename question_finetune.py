@@ -12,7 +12,7 @@ from transformers import AutoTokenizer, PreTrainedModel, set_seed
 from utils.hub import has_model, load_result, save_model
 from utils.log import log_time_and_memory
 from utils.model import find_linears, load_model
-from utils.path import make_finetune_model_hub_path
+from utils.path import make_model_hub_path
 from utils.train import compute_ce_loss, compute_kl_loss, make_en_question_samples, train
 
 FINETUNE_NAME = "question_finetune"
@@ -62,7 +62,7 @@ def _save_checkpoint(
 ) -> None:
     fp32_weights = [weight.detach().clone() for weight in weights]
     model.to(torch.bfloat16)
-    save_model(make_finetune_model_hub_path(FINETUNE_NAME, model_name, {"loss": loss, "num_samples": num_samples, "num_trained_samples": num_trained_samples}), model)
+    save_model(make_model_hub_path(FINETUNE_NAME, model_name, {"loss": loss, "num_samples": num_samples, "num_trained_samples": num_trained_samples}), model)
     model.float()
     for weight, fp32_weight in zip(weights, fp32_weights):
         weight.copy_(fp32_weight)
@@ -71,7 +71,7 @@ def _save_checkpoint(
 def main() -> None:
     config = parse(Config)
     num_trained_samples = config.num_epochs * config.num_samples
-    model_hub_path = make_finetune_model_hub_path(FINETUNE_NAME, config.model_name, {"loss": config.loss, "num_samples": config.num_samples, "num_trained_samples": num_trained_samples})
+    model_hub_path = make_model_hub_path(FINETUNE_NAME, config.model_name, {"loss": config.loss, "num_samples": config.num_samples, "num_trained_samples": num_trained_samples})
 
     if has_model(model_hub_path):
         print(f"{model_hub_path} already finetuned")
