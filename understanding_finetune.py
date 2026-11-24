@@ -10,10 +10,9 @@ from torch.nn.functional import cosine_similarity, cross_entropy
 from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase, set_seed
 
 from utils.dataset import LANGUAGES
-from utils.hub import load_results, has_model, save_model
+from utils.hub import has_model, load_result, save_model
 from utils.log import log_time_and_memory
 from utils.model import MODEL_CONFIGS, compute_logits, find_linears, forward_reasoning_hiddens, load_model
-from utils.path import make_model_hub_path
 from utils.stats import compute_kls
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.train import train
@@ -31,13 +30,12 @@ class Config:
     loss: Literal["ce", "kl", "hidden"] = "ce"
     reasoning_source: Literal["bf16_en", "on_policy"] = "bf16_en"
     train_part: Literal["understanding", "reasoning"] = "understanding"
+    gsm8k_reasoning_hub_path: str = "gsm8k_reasoning/bf16/google/gemma-4-E2B-it/max_generation_len=16384,seed=0.json"
+    num_samples: int = 4000
     learning_rate: float = 1e-5
     num_epochs: int = 1
     warmup_ratio: float = 0.05
     batch_size: int = 8
-    num_samples: int = 4000
-    max_generation_len: int = 16384
-    reasoning_seed: int = 0
     train_seed: int = 0
 
 
@@ -151,7 +149,7 @@ def main() -> None:
     model.float()
     bf16_model = None if config.loss == "ce" else load_model(config.model_name)
 
-    bf16_result = load_results("gsm8k_reasoning", make_model_hub_path("bf16", config.model_name), config.max_generation_len, [config.reasoning_seed])[config.reasoning_seed]
+    bf16_result = load_result(config.gsm8k_reasoning_hub_path)
     samples = _make_samples(tokenizer, config.model_name, bf16_result, config.train_part)[: config.num_samples]
     print(f"{model_hub_path} samples {len(samples)}")
 

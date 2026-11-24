@@ -47,6 +47,12 @@ def has_result(
     return HfApi().file_exists(REPO_NAME, make_result_path(result_dir, model_hub_path, max_generation_len, seed))
 
 
+def load_result(
+    result_hub_path: str,
+) -> dict:
+    return json.loads(Path(hf_hub_download(REPO_NAME, result_hub_path)).read_text())
+
+
 def load_results(
     result_dir: str,
     model_hub_path: str,
@@ -56,7 +62,7 @@ def load_results(
     results = {}
     for seed in seeds:
         if has_result(result_dir, model_hub_path, max_generation_len, seed):
-            results[seed] = json.loads(Path(hf_hub_download(REPO_NAME, make_result_path(result_dir, model_hub_path, max_generation_len, seed))).read_text())
+            results[seed] = load_result(make_result_path(result_dir, model_hub_path, max_generation_len, seed))
         else:
             results[seed] = {}
     return results

@@ -9,36 +9,32 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
-from utils.hub import download_model, load_results, save_result
+from utils.hub import download_model, load_result, load_results, save_result
 from utils.model import MODEL_CONFIGS
-from utils.path import extract_model_name, make_model_hub_path
+from utils.path import extract_model_name
 from utils.score import score_generation
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
 
 RESULT_DIRS = {"mgsm": "en_question_insert/mgsm", "bf16_translation": "bf16_translation_insert/mgsm"}
-TRANSLATION_RESULT_DIR = "mgsm_translation"
 
 
 @dataclass
 class Config:
     model_hub_path: str = "bf16/google/gemma-4-E2B-it"
     en_question: Literal["mgsm", "bf16_translation"] = "mgsm"
-    translation_max_generation_len: int = 512
+    translation_hub_path: str = "mgsm_translation/bf16/google/gemma-4-E2B-it/max_generation_len=512,seed=0.json"
     max_generation_len: int = 16384
     seeds: tuple[int, ...] = (0, 1, 2)
-    translation_seed: int = 0
 
 
 def _load_en_questions(
     problems: dict[str, dict[str, list]],
-    model_name: str,
     en_question: str,
-    translation_max_generation_len: int,
-    translation_seed: int,
+    translation_hub_path: str,
 ) -> dict[str, list[str]]:
     if en_question == "mgsm":
         return {language: problems["en"]["questions"] for language in LANGUAGES}
-    translation_result = load_results(TRANSLATION_RESULT_DIR, make_model_hub_path("bf16", model_name), translation_max_generation_len, [translation_seed])[translation_seed]
+    translation_result = load_result(translation_hub_path)
     en_questions = {"en": problems["en"]["questions"]}
     for language in translation_result:
         en_questions[language] = translation_result[language]["en_questions"]
@@ -71,7 +67,7 @@ def main() -> None:
         return
 
     problems = load_mgsm()
-    en_questions = _load_en_questions(problems, model_name, config.en_question, config.translation_max_generation_len, config.translation_seed)
+    en_questions = _load_en_questions(problems, config.en_question, config.translation_hub_path)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     input_ids_lists_by_language = {language: _tokenize_with_en_questions(tokenizer, model_name, problems[language]["prompts"], en_questions[language]) for language in LANGUAGES}
 
