@@ -4,7 +4,7 @@ from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
-from matplotlib.ticker import MaxNLocator, PercentFormatter
+from matplotlib.ticker import MaxNLocator, MultipleLocator, PercentFormatter
 
 from utils.dataset import LANGUAGES
 
@@ -19,6 +19,11 @@ VALUE_MARGIN = 0.15
 BASELINE_COLOR = "#808080"
 BASELINE_WIDTH = 0.8
 TICK_STEPS = [1, 2, 5, 10]
+NO_INSERT_ALPHA = 0.35
+INSERT_LOSS_YLIM = (-0.05, 0.2)
+INSERT_LOSS_YTICK = 0.05
+NUM_POSITION_BINS = 5
+POSITION_LABELS = ["0~20%", "20~40%", "40~60%", "60~80%", "80~100%"]
 
 plt.rcParams.update({
     "font.family": "Apple SD Gothic Neo",
@@ -70,9 +75,42 @@ def plot_loss_bars(
     ax.margins(y=VALUE_MARGIN)
 
 
+def plot_insert_bars(
+    ax: Axes,
+    groups: list[str],
+    losses: dict[str, list[tuple[float, float]]],
+    recovery_groups: list[str],
+) -> None:
+    for language_index, language in enumerate(LANGUAGES):
+        for group_index, (no_insert_loss, insert_loss) in enumerate(losses[language]):
+            x = group_index * GROUP_WIDTH + language_index - (len(LANGUAGES) - 1) / 2
+            ax.bar(x, no_insert_loss, width=1, color=LANGUAGE_COLORS[language], alpha=NO_INSERT_ALPHA)
+            ax.bar(x, insert_loss, width=1, color=LANGUAGE_COLORS[language])
+            text = _format_percent_point(insert_loss)
+            if groups[group_index] in recovery_groups:
+                text = f"{text}\n{(no_insert_loss - insert_loss) / no_insert_loss:.0%} 회복"
+            y = max(no_insert_loss, insert_loss, 0)
+            offset = VALUE_OFFSET
+            vertical_alignment = "bottom"
+            if insert_loss < 0:
+                y = insert_loss
+                offset = -VALUE_OFFSET
+                vertical_alignment = "top"
+            ax.annotate(text, (x, y), xytext=(0, offset), textcoords="offset points", ha="center", va=vertical_alignment, fontsize=VALUE_FONTSIZE)
+    ax.axhline(0, color=BASELINE_COLOR, linewidth=BASELINE_WIDTH)
+    ax.set_xticks([group_index * GROUP_WIDTH for group_index in range(len(groups))], groups)
+    ax.yaxis.set_major_locator(MultipleLocator(INSERT_LOSS_YTICK))
+    ax.yaxis.set_major_formatter(PercentFormatter(1, decimals=0, symbol="%p"))
+
+
+def make_insert_handles() -> tuple[Patch, ...]:
+    return Patch(visible=False, label=""), Patch(color=BASELINE_COLOR, alpha=NO_INSERT_ALPHA, label="삽입 없음"), Patch(color=BASELINE_COLOR, label="삽입")
+
+
 def add_language_legend(
     fig: Figure,
     labels: dict[str, str],
+    extra_handles: tuple[Patch, ...] = (),
 ) -> None:
     max_num_languages = 0
     for languages in RESOURCE_LANGUAGES.values():
@@ -84,7 +122,8 @@ def add_language_legend(
             handles.append(Patch(color=LANGUAGE_COLORS[language], label=labels[language]))
         for _ in range(max_num_languages - len(languages)):
             handles.append(Patch(visible=False, label=""))
-    fig.legend(handles=handles, loc="outside lower center", ncol=len(RESOURCE_LANGUAGES))
+    handles += extra_handles
+    fig.legend(handles=handles, loc="outside lower center", ncol=len(handles) // (max_num_languages + 1))
 
 
 def save_figure(

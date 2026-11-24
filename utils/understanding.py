@@ -1,6 +1,7 @@
 import re
 
 SOLVING_WORDS = ["calculat", "determin", "comput", "solv", "perform", "set up", "formulat"]
+LENGTH_RATIOS = [0.5, 0.75, 1, 1.5, 2]
 STEP_TITLE_PATTERN = re.compile(r"^[ \t]*\d+\.\s+\*\*(.+?)\*\*", re.M)
 
 

@@ -8,11 +8,9 @@ from torch import Tensor
 from utils.dataset import LANGUAGES
 from utils.hub import load_bf16_results, load_tensors
 from utils.path import extract_model_name, make_result_dir
-from utils.plot import LANGUAGE_COLORS, LANGUAGE_NAMES, add_language_legend, extract_method, save_figure
+from utils.plot import LANGUAGE_COLORS, LANGUAGE_NAMES, NUM_POSITION_BINS, POSITION_LABELS, add_language_legend, extract_method, save_figure
 from utils.score import find_solved_problem_indices
 
-NUM_POSITION_BINS = 5
-POSITION_LABELS = ["0~20%", "20~40%", "40~60%", "60~80%", "80~100%"]
 FIGURE_SIZE = (12, 3.5)
 
 

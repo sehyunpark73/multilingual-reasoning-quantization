@@ -1,4 +1,5 @@
 import re
+from statistics import mean
 
 from utils.dataset import MMLU_PROX_LITE_TEMPLATES, Benchmark
 
@@ -66,3 +67,51 @@ def find_solved_problem_indices(
         if is_solved:
             solved_problem_indices.append(problem_index)
     return solved_problem_indices
+
+
+def compute_mean_accuracy(
+    results: dict[int, dict],
+    language: str,
+) -> float:
+    return mean(result[language]["accuracy"] for result in results.values())
+
+
+def compute_subset_accuracy(
+    is_corrects: list[bool],
+    result_problem_indices: list[int],
+    problem_indices: set[int],
+) -> float:
+    subset_is_corrects = [is_correct for problem_index, is_correct in zip(result_problem_indices, is_corrects) if problem_index in problem_indices]
+    return sum(subset_is_corrects) / len(subset_is_corrects)
+
+
+def compute_insert_losses(
+    bf16_results: dict[int, dict],
+    no_insert_results: dict[int, dict],
+    insert_results: dict[int, dict],
+    language: str,
+    problem_indices_by_seed: dict[int, set[int]],
+) -> tuple[float, float]:
+    bf16_accuracies = []
+    no_insert_accuracies = []
+    insert_accuracies = []
+    for seed, problem_indices in problem_indices_by_seed.items():
+        all_problem_indices = list(range(len(bf16_results[seed][language]["is_corrects"])))
+        insert_language_result = insert_results[seed][language]
+        bf16_accuracies.append(compute_subset_accuracy(bf16_results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
+        no_insert_accuracies.append(compute_subset_accuracy(no_insert_results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
+        insert_accuracies.append(compute_subset_accuracy(insert_language_result["is_corrects"], insert_language_result["inserted_problem_indices"], problem_indices))
+    return mean(bf16_accuracies) - mean(no_insert_accuracies), mean(bf16_accuracies) - mean(insert_accuracies)
+
+
+def find_common_inserted_problem_indices(
+    native_results: dict[int, dict],
+    en_results: dict[int, dict],
+    language: str,
+) -> dict[int, set[int]]:
+    problem_indices_by_seed = {}
+    for seed, native_result in native_results.items():
+        native_problem_indices = set(native_result[language]["inserted_problem_indices"])
+        en_problem_indices = set(en_results[seed][language]["inserted_problem_indices"])
+        problem_indices_by_seed[seed] = native_problem_indices & en_problem_indices
+    return problem_indices_by_seed

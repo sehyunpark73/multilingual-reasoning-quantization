@@ -12,9 +12,7 @@ from utils.hub import download_model, load_bf16_results, load_results, save_resu
 from utils.path import extract_model_name, make_result_dir
 from utils.score import score_generation
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
-from utils.understanding import extract_understanding
-
-LENGTH_RATIOS = [0.5, 0.75, 1, 1.5, 2]
+from utils.understanding import LENGTH_RATIOS, extract_understanding
 
 
 @dataclass
