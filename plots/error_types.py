@@ -17,9 +17,9 @@ ERROR_TYPE_NAMES = {"fact": "사실 오류", "relation": "관계 오류", "targe
 ERROR_TYPE_COLORS = {"fact": "#2a78d6", "relation": "#eb6834", "target": "#1baf7a", "doubt": "#eda100", "arithmetic": "#e87ba4", "other": "#a3a29b"}
 MIN_LABEL_RATIO = 0.05
 YMAX_RATIO = 1.15
-STACK_BAR_WIDTH = 0.7
-STACK_EDGE_WIDTH = 2
-FIGURE_SIZE = (9, 7)
+STACK_BAR_WIDTH = 0.5
+STACK_EDGE_WIDTH = 1
+FIGURE_SIZE = (10, 4.5)
 
 
 @dataclass
@@ -106,7 +106,7 @@ def main() -> None:
         language_ratios.append(_compute_language_ratios(results, language, num_solved_problems))
     position_ratios = _compute_position_ratios(results, quantized_results, tokenizer)
 
-    fig, axes = plt.subplots(2, 1, figsize=FIGURE_SIZE, layout="constrained")
+    fig, axes = plt.subplots(1, 2, figsize=FIGURE_SIZE, layout="constrained")
     _plot_error_type_bars(axes[0], language_labels, language_ratios)
     axes[0].set_title(method)
     axes[0].set_ylabel("오류 비율")
