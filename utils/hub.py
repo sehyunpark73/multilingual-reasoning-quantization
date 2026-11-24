@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from huggingface_hub import HfApi, hf_hub_download, snapshot_download
-from safetensors.torch import save
+from safetensors.torch import load_file, save
 from torch import Tensor
 from transformers import PreTrainedModel
 
@@ -97,6 +97,15 @@ def has_tensors(
     reasoning_seed: int,
 ) -> bool:
     return HfApi().file_exists(REPO_NAME, make_tensors_path(result_dir, model_hub_path, max_generation_len, reasoning_seed))
+
+
+def load_tensors(
+    result_dir: str,
+    model_hub_path: str,
+    max_generation_len: int,
+    reasoning_seed: int,
+) -> dict[str, Tensor]:
+    return load_file(hf_hub_download(REPO_NAME, make_tensors_path(result_dir, model_hub_path, max_generation_len, reasoning_seed)))
 
 
 def save_tensors(
