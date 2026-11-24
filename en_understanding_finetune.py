@@ -18,7 +18,7 @@ from utils.tokenize import tokenize_prompt, tokenize_reasoning
 from utils.train import compute_ce_loss, compute_kl_loss, train
 from utils.understanding import extract_understanding
 
-FINETUNE_NAME = "understanding_finetune"
+FINETUNE_NAME = "en_understanding_finetune"
 ON_POLICY_MAX_GENERATION_LENS = {"understanding": 512, "reasoning": 2048}
 
 _Loss: TypeAlias = Literal["ce", "kl", "hidden"]

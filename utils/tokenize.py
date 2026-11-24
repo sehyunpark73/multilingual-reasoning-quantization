@@ -3,6 +3,7 @@ from torch import Tensor
 from transformers import PreTrainedTokenizerBase
 
 from utils.model import MODEL_CONFIGS
+from utils.understanding import extract_understanding
 
 
 def tokenize_prompt(
@@ -38,3 +39,22 @@ def tokenize_with_en_questions(
     for prompt, en_question in zip(prompts, en_questions):
         input_ids_list.append(torch.cat([tokenize_prompt(tokenizer, prompt), tokenize_en_question(tokenizer, model_name, en_question)]))
     return input_ids_list
+
+
+def tokenize_with_understandings(
+    tokenizer: PreTrainedTokenizerBase,
+    model_name: str,
+    prompts: list[str],
+    bf16_reasonings: list[str],
+) -> tuple[list[int], list[Tensor]]:
+    inserted_problem_indices = []
+    input_ids_list = []
+    for problem_index, reasoning in enumerate(bf16_reasonings):
+        understanding = extract_understanding(reasoning)
+        if understanding is None:
+            continue
+        prompt_ids = tokenize_prompt(tokenizer, prompts[problem_index])
+        understanding_ids = tokenize_reasoning(tokenizer, model_name, understanding)
+        inserted_problem_indices.append(problem_index)
+        input_ids_list.append(torch.cat([prompt_ids, understanding_ids]))
+    return inserted_problem_indices, input_ids_list

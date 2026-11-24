@@ -1,55 +1,28 @@
 from dataclasses import dataclass
 from statistics import mean
-from typing import Literal
 
 from simple_parsing import parse
-import torch
-from torch import Tensor
-from transformers import AutoTokenizer, PreTrainedTokenizerBase
+from transformers import AutoTokenizer
 
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
 from utils.hub import download_model, load_bf16_results, load_results, save_result
 from utils.path import extract_model_name, make_result_dir
 from utils.score import score_generation
-from utils.tokenize import tokenize_prompt, tokenize_reasoning
-from utils.understanding import extract_understanding
+from utils.tokenize import tokenize_with_understandings
 
 
 @dataclass
 class Config:
     model_hub_path: str = "bf16/google/gemma-4-E2B-it"
-    understanding_language: Literal["native", "en"] = "native"
     max_generation_len: int = 16384
     seeds: tuple[int, ...] = (0, 1, 2)
-
-
-def _tokenize_with_understandings(
-    tokenizer: PreTrainedTokenizerBase,
-    model_name: str,
-    prompts: list[str],
-    bf16_reasonings: list[str],
-) -> tuple[list[int], list[Tensor]]:
-    inserted_problem_indices = []
-    input_ids_list = []
-    for problem_index, reasoning in enumerate(bf16_reasonings):
-        understanding = extract_understanding(reasoning)
-        if understanding is None:
-            continue
-        prompt_ids = tokenize_prompt(tokenizer, prompts[problem_index])
-        understanding_ids = tokenize_reasoning(tokenizer, model_name, understanding)
-        inserted_problem_indices.append(problem_index)
-        input_ids_list.append(torch.cat([prompt_ids, understanding_ids]))
-    return inserted_problem_indices, input_ids_list
 
 
 def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
-    if config.understanding_language == "native":
-        result_dir = make_result_dir("understanding_insert", "mgsm")
-    if config.understanding_language == "en":
-        result_dir = make_result_dir("en_understanding_insert", "mgsm")
+    result_dir = make_result_dir("understanding_insert", "mgsm")
 
     results = load_results(result_dir, config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seeds = [seed for seed, result in results.items() if not result]
@@ -65,11 +38,7 @@ def main() -> None:
     all_inserted_problem_indices = {}
     input_ids_lists = []
     for seed, language in missing_seed_languages:
-        if config.understanding_language == "native":
-            bf16_language = language
-        if config.understanding_language == "en":
-            bf16_language = "en"
-        inserted_problem_indices, input_ids_list = _tokenize_with_understandings(tokenizer, model_name, problems[language]["prompts"], bf16_results[seed][bf16_language]["reasonings"])
+        inserted_problem_indices, input_ids_list = tokenize_with_understandings(tokenizer, model_name, problems[language]["prompts"], bf16_results[seed][language]["reasonings"])
         all_inserted_problem_indices[seed, language] = inserted_problem_indices
         input_ids_lists.append(input_ids_list)
 
