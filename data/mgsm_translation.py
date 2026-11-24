@@ -6,9 +6,8 @@ from simple_parsing import parse
 from utils.dataset import NON_EN_LANGUAGES, load_mgsm
 from utils.generate import generate_without_thinking
 from utils.hub import download_model, has_result, save_result
-from utils.path import make_model_hub_path
+from utils.path import RESULT_DIRS, make_model_hub_path
 
-RESULT_DIR = "mgsm_translation"
 TRANSLATION_INSTRUCTION = "Translate the following question into English. Output only the translation."
 
 
@@ -23,7 +22,7 @@ def main() -> None:
     config = parse(Config)
     model_hub_path = make_model_hub_path("bf16", config.model_name)
 
-    if has_result(RESULT_DIR, model_hub_path, config.max_generation_len, config.seed):
+    if has_result(RESULT_DIRS["mgsm_translation"], model_hub_path, config.max_generation_len, config.seed):
         print(f"{model_hub_path} already generated")
         return
 
@@ -39,7 +38,7 @@ def main() -> None:
         result[language] = {"en_questions": [response.strip() for response in generation["responses"]], "is_truncateds": generation["is_truncateds"]}
         print(f"{model_hub_path} {language} truncated {mean(result[language]['is_truncateds']):.2%} example {result[language]['en_questions'][0]!r}")
 
-    save_result(RESULT_DIR, model_hub_path, config.max_generation_len, config.seed, result)
+    save_result(RESULT_DIRS["mgsm_translation"], model_hub_path, config.max_generation_len, config.seed, result)
 
 
 if __name__ == "__main__":

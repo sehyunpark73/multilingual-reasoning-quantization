@@ -5,10 +5,8 @@ from simple_parsing import parse
 from utils.dataset import LANGUAGES, load_translated_gsm8k
 from utils.generate import generate
 from utils.hub import download_model, has_result, save_result
-from utils.path import make_model_hub_path
+from utils.path import RESULT_DIRS, make_model_hub_path
 from utils.score import score_generation
-
-RESULT_DIR = "gsm8k_reasoning"
 
 
 @dataclass
@@ -22,7 +20,7 @@ def main() -> None:
     config = parse(Config)
     model_hub_path = make_model_hub_path("bf16", config.model_name)
 
-    if has_result(RESULT_DIR, model_hub_path, config.max_generation_len, config.seed):
+    if has_result(RESULT_DIRS["gsm8k_reasoning"], model_hub_path, config.max_generation_len, config.seed):
         print(f"{model_hub_path} already generated")
         return
 
@@ -47,7 +45,7 @@ def main() -> None:
         }
 
     print(f"{model_hub_path} en correct {len(en_correct_problem_indices)} of {len(full_result['en']['is_corrects'])}")
-    save_result(RESULT_DIR, model_hub_path, config.max_generation_len, config.seed, result)
+    save_result(RESULT_DIRS["gsm8k_reasoning"], model_hub_path, config.max_generation_len, config.seed, result)
 
 
 if __name__ == "__main__":

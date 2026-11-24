@@ -6,10 +6,9 @@ from simple_parsing import parse
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import generate
 from utils.hub import load_bf16_results, load_results, save_result
-from utils.path import extract_model_name, make_loss_result_dir
+from utils.path import RESULT_DIRS, extract_model_name, make_loss_result_dir
 from utils.score import find_solved_problem_indices
 
-RESULT_DIR = "error_types/mgsm"
 ERROR_TYPES = ["fact", "relation", "target", "doubt", "arithmetic", "other"]
 ERROR_TYPE_PATTERN = r"type:\s*(" + "|".join(ERROR_TYPES) + r")\b"
 JUDGE_PROMPT = """A small model solved a math word problem and got it wrong. Find the first line where its reasoning goes wrong, and say what kind of error it is.
@@ -108,7 +107,7 @@ def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
 
-    results = load_results(RESULT_DIR, config.model_hub_path, config.max_generation_len, config.seeds)
+    results = load_results(RESULT_DIRS["error_types"], config.model_hub_path, config.max_generation_len, config.seeds)
     missing_seeds = [seed for seed, result in results.items() if not result]
     if not missing_seeds:
         print(f"{config.model_hub_path} already evaluated")
@@ -135,7 +134,7 @@ def main() -> None:
         print(f"{config.model_hub_path} seed {seed} {language} judged {len(error_types)} unparsed {error_types.count(None)}")
 
     for seed in missing_seeds:
-        save_result(RESULT_DIR, config.model_hub_path, config.max_generation_len, seed, results[seed])
+        save_result(RESULT_DIRS["error_types"], config.model_hub_path, config.max_generation_len, seed, results[seed])
 
 
 if __name__ == "__main__":

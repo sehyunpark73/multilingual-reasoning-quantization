@@ -7,11 +7,9 @@ from transformers import AutoTokenizer
 from utils.dataset import NON_EN_LANGUAGES, load_translated_gsm8k
 from utils.generate import continue_generation
 from utils.hub import download_model, has_result, save_result
-from utils.path import make_model_hub_path
+from utils.path import RESULT_DIRS, make_model_hub_path
 from utils.score import score_generation
 from utils.tokenize import tokenize_with_en_questions
-
-RESULT_DIR = "gsm8k_en_question_insert_reasoning"
 
 
 @dataclass
@@ -25,7 +23,7 @@ def main() -> None:
     config = parse(Config)
     model_hub_path = make_model_hub_path("bf16", config.model_name)
 
-    if has_result(RESULT_DIR, model_hub_path, config.max_generation_len, config.seed):
+    if has_result(RESULT_DIRS["gsm8k_en_question_insert_reasoning"], model_hub_path, config.max_generation_len, config.seed):
         print(f"{model_hub_path} already generated")
         return
 
@@ -48,7 +46,7 @@ def main() -> None:
         }
         print(f"{model_hub_path} {language} accuracy {full_result[language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} truncated {mean(generation['is_truncateds']):.2%} finished {len(finished_problem_indices)} of {len(generation['responses'])}")
 
-    save_result(RESULT_DIR, model_hub_path, config.max_generation_len, config.seed, result)
+    save_result(RESULT_DIRS["gsm8k_en_question_insert_reasoning"], model_hub_path, config.max_generation_len, config.seed, result)
 
 
 if __name__ == "__main__":

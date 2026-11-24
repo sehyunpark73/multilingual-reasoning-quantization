@@ -1,5 +1,19 @@
 from utils.dataset import Benchmark
 
+RESULT_DIRS = {
+    "position_kl": "position_kl/mgsm",
+    "error_types": "error_types/mgsm",
+    "understanding_insert": "understanding_insert/mgsm",
+    "en_understanding_insert": "en_understanding_insert/mgsm",
+    "reasoning_prefix_insert": "reasoning_prefix_insert/mgsm",
+    "en_question_insert": "en_question_insert/mgsm",
+    "bf16_translation_insert": "bf16_translation_insert/mgsm",
+    "translate_first": "translate_first/mgsm",
+    "mgsm_translation": "mgsm_translation",
+    "gsm8k_reasoning": "gsm8k_reasoning",
+    "gsm8k_en_question_insert_reasoning": "gsm8k_en_question_insert_reasoning",
+}
+
 
 def make_model_hub_path(
     method: str,
