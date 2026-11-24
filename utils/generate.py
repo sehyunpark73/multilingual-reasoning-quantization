@@ -3,12 +3,9 @@ from vllm.outputs import CompletionOutput  # type: ignore
 from vllm.tokenizers import TokenizerLike  # type: ignore
 
 from utils.log import log_time
+from utils.model import MODEL_CONFIGS
 
 MAX_MODEL_LEN = 40960
-GENERATION_CONFIGS = {
-    "Qwen/Qwen3.5-2B": {"sampling": {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "presence_penalty": 1.5}, "reasoning_end": "</think>"},
-    "google/gemma-4-E2B-it": {"sampling": {"temperature": 1.0, "top_p": 0.95, "top_k": 64, "presence_penalty": 0.0}, "reasoning_end": "<channel|>"},
-}
 
 
 def _split_completion(
@@ -36,12 +33,12 @@ def generate(
     for prompts, seed in zip(prompt_lists, prompt_list_seeds):
         for prompt in prompts:
             messages.append([{"role": "user", "content": prompt}])
-            sampling_params.append(SamplingParams(**GENERATION_CONFIGS[model_name]["sampling"], max_tokens=max_generation_len, seed=seed))
+            sampling_params.append(SamplingParams(**MODEL_CONFIGS[model_name]["sampling"], max_tokens=max_generation_len, seed=seed))
     with log_time(model_path):
         outputs = model.chat(messages, sampling_params, use_tqdm=True, chat_template_kwargs={"enable_thinking": True})
 
     tokenizer = model.get_tokenizer()
-    reasoning_end_id = tokenizer.convert_tokens_to_ids(GENERATION_CONFIGS[model_name]["reasoning_end"])
+    reasoning_end_id = tokenizer.convert_tokens_to_ids(MODEL_CONFIGS[model_name]["reasoning_end"])
     generations = []
     start = 0
     for prompts in prompt_lists:

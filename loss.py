@@ -38,7 +38,8 @@ def main() -> None:
     config = parse(Config)
     hub_path = make_hub_path(config.method, config.model_name, config.calibration_languages, config.num_bits, config.group_size, config.num_chunks)
 
-    results = load_results(config.benchmark, hub_path, config.max_generation_len, config.seeds)
+    result_dir = f"loss/{config.benchmark}"
+    results = load_results(result_dir, hub_path, config.max_generation_len, config.seeds)
     missing_seed_languages = _find_missing_seed_languages(results)
     if not missing_seed_languages:
         print(f"{hub_path} already evaluated")
@@ -55,7 +56,7 @@ def main() -> None:
         print(f"{hub_path} seed {seed} {language} accuracy {results[seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} truncated {mean(generation['truncateds']):.2%}")
 
     for seed in sorted({seed for seed, _ in missing_seed_languages}):
-        save_result(config.benchmark, hub_path, config.max_generation_len, seed, results[seed])
+        save_result(result_dir, hub_path, config.max_generation_len, seed, results[seed])
 
 
 if __name__ == "__main__":

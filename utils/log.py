@@ -28,11 +28,10 @@ def log_time(
 
 
 @contextmanager
-def log_layer(
-    layer_index: int,
-    num_layers: int,
+def log_time_and_memory(
+    name: str,
 ) -> Generator[None]:
     start_time = time.perf_counter()
     torch.cuda.reset_peak_memory_stats()
     yield
-    print(f"layer {layer_index + 1}/{num_layers} time {_format_duration(time.perf_counter() - start_time)} memory {_format_memory(torch.cuda.max_memory_allocated())}")
+    print(f"{name} time {_format_duration(time.perf_counter() - start_time)} memory {_format_memory(torch.cuda.max_memory_allocated())}")

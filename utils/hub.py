@@ -3,6 +3,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from huggingface_hub import HfApi, hf_hub_download, snapshot_download
+from safetensors.torch import save
+from torch import Tensor
 from transformers import PreTrainedModel
 
 REPO_NAME = "sehyunpark73/multilingual-reasoning-quantization"
@@ -22,12 +24,21 @@ def make_hub_path(
 
 
 def _make_result_path(
-    experiment_name: str,
+    result_dir: str,
     hub_path: str,
     max_generation_len: int,
     seed: int,
 ) -> str:
-    return f"{experiment_name}/{hub_path}/max_generation_len={max_generation_len},seed={seed}.json"
+    return f"{result_dir}/{hub_path}/max_generation_len={max_generation_len},seed={seed}.json"
+
+
+def _make_tensors_path(
+    result_dir: str,
+    hub_path: str,
+    max_generation_len: int,
+    reasoning_seed: int,
+) -> str:
+    return f"{result_dir}/{hub_path}/max_generation_len={max_generation_len},reasoning_seed={reasoning_seed}.safetensors"
 
 
 def save_model(
@@ -47,25 +58,46 @@ def download_model(
 
 
 def save_result(
-    experiment_name: str,
+    result_dir: str,
     hub_path: str,
     max_generation_len: int,
     seed: int,
     result: dict,
 ) -> None:
-    path = _make_result_path(experiment_name, hub_path, max_generation_len, seed)
+    path = _make_result_path(result_dir, hub_path, max_generation_len, seed)
     HfApi().upload_file(path_or_fileobj=json.dumps(result, indent=2, ensure_ascii=False).encode(), path_in_repo=path, repo_id=REPO_NAME, commit_message=f"save {path}")
     print(f"saved {path}")
 
 
 def load_results(
-    experiment_name: str,
+    result_dir: str,
     hub_path: str,
     max_generation_len: int,
     seeds: tuple[int, ...],
 ) -> dict[int, dict]:
     results = {}
     for seed in seeds:
-        path = _make_result_path(experiment_name, hub_path, max_generation_len, seed)
+        path = _make_result_path(result_dir, hub_path, max_generation_len, seed)
         results[seed] = json.loads(Path(hf_hub_download(REPO_NAME, path)).read_text()) if HfApi().file_exists(REPO_NAME, path) else {}
     return results
+
+
+def tensors_exist(
+    result_dir: str,
+    hub_path: str,
+    max_generation_len: int,
+    reasoning_seed: int,
+) -> bool:
+    return HfApi().file_exists(REPO_NAME, _make_tensors_path(result_dir, hub_path, max_generation_len, reasoning_seed))
+
+
+def save_tensors(
+    result_dir: str,
+    hub_path: str,
+    max_generation_len: int,
+    reasoning_seed: int,
+    tensors: dict[str, Tensor],
+) -> None:
+    path = _make_tensors_path(result_dir, hub_path, max_generation_len, reasoning_seed)
+    HfApi().upload_file(path_or_fileobj=save(tensors), path_in_repo=path, repo_id=REPO_NAME, commit_message=f"save {path}")
+    print(f"saved {path}")

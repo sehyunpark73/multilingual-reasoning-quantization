@@ -9,7 +9,7 @@ from utils.capture import capture_layer_inputs
 from utils.dataset import load_wikipedia
 from utils.grid import find_grid, round_to_grid
 from utils.hub import make_hub_path, save_model
-from utils.log import log_layer
+from utils.log import log_time_and_memory
 from utils.model import find_linears, load_model
 from utils.stats import compute_abs_mean_and_hessian
 
@@ -70,7 +70,7 @@ def main() -> None:
     layers = model.model.language_model.layers
 
     for layer_index, layer in enumerate(layers):
-        with log_layer(layer_index, len(layers)):
+        with log_time_and_memory(f"layer {layer_index + 1}/{len(layers)}"):
             layer_inputs = capture_layer_inputs(model, layer, chunks)
             for linear in find_linears(layer):
                 _, hessian = compute_abs_mean_and_hessian(layer, linear, layer_inputs)
