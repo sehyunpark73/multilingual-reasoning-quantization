@@ -17,3 +17,11 @@ def tokenize_reasoning(
     reasoning: str,
 ) -> Tensor:
     return tokenizer(MODEL_CONFIGS[model_name]["reasoning_start"] + reasoning, add_special_tokens=False, return_tensors="pt")["input_ids"][0]
+
+
+def tokenize_en_question(
+    tokenizer: PreTrainedTokenizerBase,
+    model_name: str,
+    en_question: str,
+) -> Tensor:
+    return tokenize_reasoning(tokenizer, model_name, f"{MODEL_CONFIGS[model_name]['reasoning_header']}{en_question}\n\n")

@@ -6,22 +6,22 @@ from typing import Literal
 from simple_parsing import parse
 import torch
 from torch import Tensor
-from torch.nn.functional import cosine_similarity, cross_entropy
+from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase, set_seed
 
 from utils.dataset import LANGUAGES
 from utils.hub import has_model, load_result, save_model
 from utils.log import log_time_and_memory
-from utils.model import MODEL_CONFIGS, compute_logits, find_linears, forward_reasoning_hiddens, load_model
-from utils.stats import compute_kls
+from utils.model import MODEL_CONFIGS, find_linears, load_model
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
-from utils.train import train
+from utils.train import compute_ce_loss, compute_kl_loss, train
 from utils.understanding import extract_understanding
 
 TRAIN_LANGUAGES = [language for language in LANGUAGES if language != "en"]
 ON_POLICY_MAX_GENERATION_LENS = {"understanding": 512, "reasoning": 2048}
 
-_Sample = tuple[Tensor, Tensor, Tensor]
+type _Loss = Literal["ce", "kl", "hidden"]
+type _Sample = tuple[Tensor, Tensor, Tensor]
 
 
 @dataclass
@@ -91,39 +91,12 @@ def _forward_layer_hiddens(
     return torch.stack(hidden_states[1:])[:, 0, prompt_len:]
 
 
-def _compute_sample_loss(
-    model: PreTrainedModel,
-    bf16_model: PreTrainedModel | None,
-    loss: str,
-    prompt_ids: Tensor,
-    bf16_prompt_ids: Tensor,
-    text_ids: Tensor,
-) -> Tensor:
-    input_ids = torch.cat([prompt_ids, text_ids])
-    bf16_input_ids = torch.cat([bf16_prompt_ids, text_ids])
-    if loss == "ce":
-        with torch.autocast("cuda", dtype=torch.bfloat16):
-            logits = compute_logits(model, forward_reasoning_hiddens(model, input_ids, len(prompt_ids)))
-        return cross_entropy(logits, text_ids.to(logits.device), reduction="sum")
-    if loss == "kl":
-        with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
-            bf16_logits = compute_logits(bf16_model, forward_reasoning_hiddens(bf16_model, bf16_input_ids, len(bf16_prompt_ids)))
-        with torch.autocast("cuda", dtype=torch.bfloat16):
-            logits = compute_logits(model, forward_reasoning_hiddens(model, input_ids, len(prompt_ids)))
-        return compute_kls(bf16_logits, logits).sum()
-    with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
-        bf16_hiddens = _forward_layer_hiddens(bf16_model, bf16_input_ids, len(bf16_prompt_ids))
-    with torch.autocast("cuda", dtype=torch.bfloat16):
-        hiddens = _forward_layer_hiddens(model, input_ids, len(prompt_ids))
-    return (1 - cosine_similarity(hiddens.float(), bf16_hiddens.float(), dim=-1)).mean(0).sum()
-
-
 def _compute_losses(
     model: PreTrainedModel,
     bf16_model: PreTrainedModel | None,
     tokenizer: PreTrainedTokenizerBase,
     model_name: str,
-    loss: str,
+    loss: _Loss,
     reasoning_source: str,
     train_part: str,
     batch: list[_Sample],
@@ -132,7 +105,16 @@ def _compute_losses(
         batch = _generate_on_policy_batch(model, tokenizer, model_name, train_part, batch)
     num_tokens = sum(len(text_ids) for _, _, text_ids in batch)
     for prompt_ids, bf16_prompt_ids, text_ids in batch:
-        yield _compute_sample_loss(model, bf16_model, loss, prompt_ids, bf16_prompt_ids, text_ids) / num_tokens
+        if loss == "ce":
+            yield compute_ce_loss(model, prompt_ids, text_ids) / num_tokens
+        if loss == "kl":
+            yield compute_kl_loss(model, bf16_model, prompt_ids, bf16_prompt_ids, text_ids) / num_tokens
+        if loss == "hidden":
+            with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+                bf16_hiddens = _forward_layer_hiddens(bf16_model, torch.cat([bf16_prompt_ids, text_ids]), len(bf16_prompt_ids))
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                hiddens = _forward_layer_hiddens(model, torch.cat([prompt_ids, text_ids]), len(prompt_ids))
+            yield (1 - cosine_similarity(hiddens.float(), bf16_hiddens.float(), dim=-1)).mean(0).sum() / num_tokens
 
 
 def main() -> None:

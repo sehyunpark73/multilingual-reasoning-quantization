@@ -34,12 +34,15 @@ def _split_outputs(
     tokenizer: TokenizerLike,
     model_name: str,
     input_lists: list[list],
+    is_reasoning_ids_returned: bool,
 ) -> list[dict]:
     reasoning_end_id = tokenizer.convert_tokens_to_ids(MODEL_CONFIGS[model_name]["reasoning_end"])
     generations = []
     start = 0
     for input_list in input_lists:
         generation = {"reasoning_lens": [], "is_truncateds": [], "reasonings": [], "responses": []}
+        if is_reasoning_ids_returned:
+            generation["reasoning_ids"] = []
         for output in outputs[start : start + len(input_list)]:
             completion = output.outputs[0]
             reasoning_len, reasoning, response = _split_completion(completion, tokenizer, reasoning_end_id)
@@ -47,6 +50,8 @@ def _split_outputs(
             generation["is_truncateds"].append(completion.finish_reason == "length")
             generation["reasonings"].append(reasoning)
             generation["responses"].append(response)
+            if is_reasoning_ids_returned:
+                generation["reasoning_ids"].append(list(completion.token_ids[:reasoning_len]))
         generations.append(generation)
         start += len(input_list)
     return generations
@@ -79,7 +84,7 @@ def generate(
     messages, sampling_params = _make_chat_inputs(model_name, prompt_lists, prompt_list_seeds, max_generation_len)
     with log_time(model_path):
         outputs = model.chat(messages, sampling_params, use_tqdm=True, chat_template_kwargs={"enable_thinking": True})
-    return _split_outputs(outputs, model.get_tokenizer(), model_name, prompt_lists)
+    return _split_outputs(outputs, model.get_tokenizer(), model_name, prompt_lists, is_reasoning_ids_returned=False)
 
 
 def generate_without_thinking(
@@ -108,6 +113,7 @@ def continue_generation(
     input_ids_lists: list[list[Tensor]],
     input_ids_list_seeds: list[int],
     max_generation_len: int,
+    is_reasoning_ids_returned: bool = False,
 ) -> list[dict]:
     model = _load_vllm(model_path, model_name, None)
     token_prompts = []
@@ -118,4 +124,4 @@ def continue_generation(
             sampling_params.append(SamplingParams(**MODEL_CONFIGS[model_name]["sampling"], max_tokens=max_generation_len, seed=seed))
     with log_time(model_path):
         outputs = model.generate(token_prompts, sampling_params, use_tqdm=True)
-    return _split_outputs(outputs, model.get_tokenizer(), model_name, input_ids_lists)
+    return _split_outputs(outputs, model.get_tokenizer(), model_name, input_ids_lists, is_reasoning_ids_returned)

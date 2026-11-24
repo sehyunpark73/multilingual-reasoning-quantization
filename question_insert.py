@@ -10,10 +10,9 @@ from transformers import AutoTokenizer, PreTrainedTokenizerBase
 from utils.dataset import LANGUAGES, load_mgsm
 from utils.generate import continue_generation
 from utils.hub import download_model, load_result, load_results, save_result
-from utils.model import MODEL_CONFIGS
 from utils.path import extract_model_name
 from utils.score import score_generation
-from utils.tokenize import tokenize_prompt, tokenize_reasoning
+from utils.tokenize import tokenize_en_question, tokenize_prompt
 
 RESULT_DIRS = {"mgsm": "en_question_insert/mgsm", "bf16_translation": "bf16_translation_insert/mgsm"}
 
@@ -49,9 +48,7 @@ def _tokenize_with_en_questions(
 ) -> list[Tensor]:
     input_ids_list = []
     for prompt, en_question in zip(prompts, en_questions):
-        prompt_ids = tokenize_prompt(tokenizer, prompt)
-        en_question_ids = tokenize_reasoning(tokenizer, model_name, f"{MODEL_CONFIGS[model_name]['reasoning_header']}{en_question}\n\n")
-        input_ids_list.append(torch.cat([prompt_ids, en_question_ids]))
+        input_ids_list.append(torch.cat([tokenize_prompt(tokenizer, prompt), tokenize_en_question(tokenizer, model_name, en_question)]))
     return input_ids_list
 
 

@@ -3,11 +3,40 @@ import math
 import random
 from statistics import mean
 
+import torch
 from torch import Tensor
+from torch.nn.functional import cross_entropy
 from torch.optim import AdamW
-from transformers import get_cosine_schedule_with_warmup
+from transformers import PreTrainedModel, get_cosine_schedule_with_warmup
+
+from utils.model import compute_logits, forward_reasoning_hiddens
+from utils.stats import compute_kls
 
 LOG_INTERVAL_STEPS = 16
+
+
+def compute_ce_loss(
+    model: PreTrainedModel,
+    prompt_ids: Tensor,
+    text_ids: Tensor,
+) -> Tensor:
+    with torch.autocast("cuda", dtype=torch.bfloat16):
+        logits = compute_logits(model, forward_reasoning_hiddens(model, torch.cat([prompt_ids, text_ids]), len(prompt_ids)))
+    return cross_entropy(logits, text_ids.to(logits.device), reduction="sum")
+
+
+def compute_kl_loss(
+    model: PreTrainedModel,
+    bf16_model: PreTrainedModel,
+    prompt_ids: Tensor,
+    bf16_prompt_ids: Tensor,
+    text_ids: Tensor,
+) -> Tensor:
+    with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+        bf16_logits = compute_logits(bf16_model, forward_reasoning_hiddens(bf16_model, torch.cat([bf16_prompt_ids, text_ids]), len(bf16_prompt_ids)))
+    with torch.autocast("cuda", dtype=torch.bfloat16):
+        logits = compute_logits(model, forward_reasoning_hiddens(model, torch.cat([prompt_ids, text_ids]), len(prompt_ids)))
+    return compute_kls(bf16_logits, logits).sum()
 
 
 def train(
@@ -18,6 +47,8 @@ def train(
     num_epochs: int,
     warmup_ratio: float,
     batch_size: int,
+    checkpoint_num_trained_samples: tuple[int, ...] = (),
+    save_checkpoint: Callable[[int], None] | None = None,
 ) -> None:
     for weight in weights:
         weight.requires_grad_(True)
@@ -42,3 +73,6 @@ def train(
             if step == 1 or step % LOG_INTERVAL_STEPS == 0:
                 print(f"epoch {epoch + 1}/{num_epochs} batch {batch_index + 1}/{num_batches} loss {mean(batch_losses):.4f} learning_rate {scheduler.get_last_lr()[0]:.2e}")
                 batch_losses = []
+            num_trained_samples = epoch * len(samples) + min(batch_start + batch_size, len(samples))
+            if num_trained_samples in checkpoint_num_trained_samples:
+                save_checkpoint(num_trained_samples)
