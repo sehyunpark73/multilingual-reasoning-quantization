@@ -19,7 +19,6 @@ MIN_LABEL_RATIO = 0.05
 ERROR_RATIO_YLIM = (0, 0.5)
 STACK_BAR_WIDTH = 0.5
 STACK_EDGE_WIDTH = 1
-FIGURE_WIDTH = 10
 
 
 @dataclass
@@ -103,7 +102,7 @@ def main() -> None:
         language_ratios.append(_compute_language_ratios(results, language, num_solved_problems))
     position_ratios = _compute_position_ratios(results, quantized_results, tokenizer)
 
-    fig, axes = plt.subplots(1, 2, figsize=compute_figure_size(1, FIGURE_WIDTH), layout="constrained")
+    fig, axes = plt.subplots(1, 2, figsize=compute_figure_size(1), layout="constrained")
     _plot_error_type_bars(axes[0], language_labels, language_ratios)
     axes[0].set_title(method)
     axes[0].set_ylabel("오류 비율")

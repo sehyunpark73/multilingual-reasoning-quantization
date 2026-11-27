@@ -11,7 +11,6 @@ from utils.score import compute_accuracy_losses, compute_loop_ratio, compute_mea
 
 SEEDS = {"mgsm": (0, 1, 2), "mmlu_prox_lite": (0,)}
 BF16_SEEDS = {"mgsm": (0, 1, 2), "mmlu_prox_lite": (0, 1)}
-FIGURE_WIDTH = 10
 
 
 @dataclass
@@ -34,7 +33,7 @@ def main() -> None:
     bf16_results = load_bf16_results(config.benchmark, model_name, config.max_generation_len, BF16_SEEDS[config.benchmark])
     all_results = [load_results(make_result_dir("loss", config.benchmark), model_hub_path, config.max_generation_len, SEEDS[config.benchmark]) for model_hub_path in config.model_hub_paths]
 
-    fig, axes = plt.subplots(3, 1, figsize=compute_figure_size(3, FIGURE_WIDTH), layout="constrained")
+    fig, axes = plt.subplots(3, 1, figsize=compute_figure_size(3), layout="constrained")
     plot_language_bars(axes[0], methods, compute_accuracy_losses(bf16_results, all_results), "%p")
     plot_language_bars(axes[1], methods, compute_mean_values(all_results, compute_truncated_ratio), "%")
     plot_language_bars(axes[2], methods, compute_mean_values(all_results, compute_loop_ratio), "%")

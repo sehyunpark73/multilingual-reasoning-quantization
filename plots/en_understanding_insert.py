@@ -9,8 +9,6 @@ from utils.path import extract_method, extract_model_name, make_result_dir
 from utils.plot import add_language_legend, compute_figure_size, make_insert_handles, make_problem_count_labels, plot_insert_bars, save_figure
 from utils.score import compute_insert_losses, find_common_inserted_problem_indices
 
-FIGURE_WIDTH = 15
-
 
 @dataclass
 class Config:
@@ -41,7 +39,7 @@ def main() -> None:
         for language in LANGUAGES:
             losses[language].append(compute_insert_losses(bf16_results, no_insert_results, insert_results, language, problem_indices_by_language[language]))
 
-    fig, ax = plt.subplots(figsize=compute_figure_size(1, FIGURE_WIDTH), layout="constrained")
+    fig, ax = plt.subplots(figsize=compute_figure_size(1), layout="constrained")
     plot_insert_bars(ax, methods, losses, [])
     ax.set_ylabel("손실")
 

@@ -9,7 +9,6 @@ from utils.plot import LANGUAGE_NAMES, add_language_legend, compute_figure_size,
 from utils.score import compute_accuracy_losses
 
 MODEL_NAMES = ["mxfp4", "ce_kl finetune", "ce_kl finetune\nmxfp4", "kl qat", "ce_kl qat"]
-FIGURE_WIDTH = 12
 
 
 @dataclass
@@ -31,7 +30,7 @@ def main() -> None:
     bf16_results = load_bf16_results("mgsm", model_name, config.max_generation_len, config.seeds)
     all_results = [load_results(make_result_dir("loss", "mgsm"), model_hub_path, config.max_generation_len, config.seeds) for model_hub_path in config.model_hub_paths]
 
-    fig, ax = plt.subplots(figsize=compute_figure_size(1, FIGURE_WIDTH), layout="constrained")
+    fig, ax = plt.subplots(figsize=compute_figure_size(1), layout="constrained")
     plot_language_bars(ax, MODEL_NAMES, compute_accuracy_losses(bf16_results, all_results), "%p")
     ax.set_ylabel("손실")
 

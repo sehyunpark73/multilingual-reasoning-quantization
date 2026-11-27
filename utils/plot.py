@@ -3,6 +3,7 @@ from statistics import mean
 from typing import Literal, TypeAlias
 
 from matplotlib.axes import Axes
+from matplotlib.container import BarContainer
 from matplotlib.figure import Figure
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
@@ -27,7 +28,8 @@ POSITION_LABELS = ["0~20%", "20~40%", "40~60%", "60~80%", "80~100%"]
 PANEL_HEIGHT = 1.9
 FIGURE_HEIGHT_MARGIN = 1.6
 NUM_FIT_STEPS = 3
-NUM_GROUP_SLOTS = 5
+BAR_WIDTH = 0.45
+INITIAL_FIGURE_WIDTH = 10
 
 Unit: TypeAlias = Literal["%p", "%", "배"]
 
@@ -150,15 +152,6 @@ def plot_insert_bars(
     _set_yaxis(ax, "%p")
 
 
-def set_group_xlim(
-    ax: Axes,
-    num_groups: int,
-) -> None:
-    num_group_slots = max(num_groups, NUM_GROUP_SLOTS)
-    center = (num_groups - 1) * GROUP_WIDTH / 2
-    ax.set_xlim(center - num_group_slots * GROUP_WIDTH / 2, center + num_group_slots * GROUP_WIDTH / 2)
-
-
 def make_insert_handles(
     no_insert_label: str,
     insert_label: str,
@@ -197,7 +190,7 @@ def make_problem_count_labels(
 
 def compute_figure_size(
     num_rows: int,
-    width: float,
+    width: float = INITIAL_FIGURE_WIDTH,
 ) -> tuple[float, float]:
     return width, num_rows * PANEL_HEIGHT + FIGURE_HEIGHT_MARGIN
 
@@ -213,11 +206,39 @@ def _fit_panel_height(
         fig.set_size_inches(width, height + (PANEL_HEIGHT - panel_height) * num_rows)
 
 
+def _fit_bar_width(
+    fig: Figure,
+) -> None:
+    bar_axes = []
+    for ax in fig.axes:
+        if ax.containers and isinstance(ax.containers[0], BarContainer):
+            bar_axes.append(ax)
+    if not bar_axes:
+        return
+    widest_ax = bar_axes[0]
+    for ax in bar_axes:
+        if ax.get_xlim()[1] - ax.get_xlim()[0] > widest_ax.get_xlim()[1] - widest_ax.get_xlim()[0]:
+            widest_ax = ax
+    widest_xmin, widest_xmax = widest_ax.get_xlim()
+    xlim_len = widest_xmax - widest_xmin
+    for ax in bar_axes:
+        offset = widest_ax.get_xticks()[-1] - ax.get_xticks()[-1]
+        ax.set_xlim(widest_xmin - offset, widest_xmax - offset)
+    bar_data_width = bar_axes[0].containers[0].patches[0].get_width()
+    num_columns = bar_axes[0].get_subplotspec().get_gridspec().ncols
+    for _ in range(NUM_FIT_STEPS):
+        fig.canvas.draw()
+        bar_width = bar_data_width * bar_axes[0].get_window_extent().width / fig.dpi / xlim_len
+        width, height = fig.get_size_inches()
+        fig.set_size_inches(width + (BAR_WIDTH - bar_width) * xlim_len / bar_data_width * num_columns, height)
+
+
 def save_figure(
     fig: Figure,
     model_name: str,
     figure_name: str,
 ) -> None:
+    _fit_bar_width(fig)
     _fit_panel_height(fig)
     path = Path("figures") / model_name.split("/")[1] / f"{figure_name}.png"
     path.parent.mkdir(parents=True, exist_ok=True)

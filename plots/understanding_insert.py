@@ -10,7 +10,6 @@ from utils.plot import add_language_legend, compute_figure_size, make_insert_han
 from utils.score import compute_insert_losses, find_common_inserted_problem_indices
 
 RECOVERY_METHODS = ["mxfp4"]
-FIGURE_WIDTH = 15
 
 
 @dataclass
@@ -42,7 +41,7 @@ def main() -> None:
         for language in LANGUAGES:
             losses[language].append(compute_insert_losses(bf16_results, no_insert_results, insert_results, language, problem_indices_by_language[language]))
 
-    fig, ax = plt.subplots(figsize=compute_figure_size(1, FIGURE_WIDTH), layout="constrained")
+    fig, ax = plt.subplots(figsize=compute_figure_size(1), layout="constrained")
     plot_insert_bars(ax, methods, losses, RECOVERY_METHODS)
     ax.set_ylabel("손실")
 

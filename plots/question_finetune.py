@@ -10,7 +10,6 @@ from utils.plot import LANGUAGE_NAMES, add_language_legend, compute_figure_size,
 from utils.score import compute_accuracy_losses, compute_loop_ratio, compute_mean_values, compute_truncated_ratio
 
 FINETUNE_NAMES = ["ce\n800 sample", "ce_kl\n800 sample", "ce_kl\n4000 sample", "ce_kl\n20000 sample", "ce_kl\n29492 sample"]
-FIGURE_WIDTH = 14
 
 
 @dataclass
@@ -42,7 +41,7 @@ def main() -> None:
     for language, language_median_reasoning_lens in median_reasoning_lens.items():
         reasoning_len_ratios[language] = [median_reasoning_len / language_median_reasoning_lens[0] for median_reasoning_len in language_median_reasoning_lens[1:]]
 
-    fig, axes = plt.subplots(4, 1, figsize=compute_figure_size(4, FIGURE_WIDTH), layout="constrained")
+    fig, axes = plt.subplots(4, 1, figsize=compute_figure_size(4), layout="constrained")
     plot_language_bars(axes[0], FINETUNE_NAMES, compute_accuracy_losses(bf16_results, all_results), "%p")
     plot_language_bars(axes[1], FINETUNE_NAMES, compute_mean_values(all_results, compute_truncated_ratio), "%")
     plot_language_bars(axes[2], FINETUNE_NAMES, compute_mean_values(all_results, compute_loop_ratio), "%")

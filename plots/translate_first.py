@@ -14,7 +14,6 @@ from utils.score import compute_accuracy_loss_pairs
 EN_QUESTION_WINDOW_RATIO = 4
 MIN_EN_QUESTION_WORD_RATIO = 0.7
 NO_INSTRUCTION_NAME = "instruction 없음\nbf16"
-FIGURE_WIDTH = 14
 
 
 @dataclass
@@ -68,7 +67,7 @@ def main() -> None:
     all_instruction_results = [load_results(make_result_dir("translate_first", "mgsm"), model_hub_path, config.max_generation_len, config.seeds) for model_hub_path in config.model_hub_paths]
     en_questions = load_mgsm()["en"]["questions"]
 
-    fig, axes = plt.subplots(2, 1, figsize=compute_figure_size(2, FIGURE_WIDTH), layout="constrained")
+    fig, axes = plt.subplots(2, 1, figsize=compute_figure_size(2), layout="constrained")
     plot_insert_bars(axes[0], methods, compute_accuracy_loss_pairs(bf16_results, all_no_instruction_results, all_instruction_results), [])
     axes[0].set_ylabel("손실")
     translation_ratios = _compute_translation_ratios([bf16_results] + all_instruction_results, en_questions)
