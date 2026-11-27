@@ -34,6 +34,7 @@ SHUFFLE_BUFFER_SIZE = 10000
 MCOT_BATCH_SIZE = 100000
 
 Benchmark: TypeAlias = Literal["mgsm", "mmlu_prox_lite"]
+Language: TypeAlias = Literal["en", "zh", "ja", "sw", "te"]
 
 
 def load_wikipedia(

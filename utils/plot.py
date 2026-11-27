@@ -31,7 +31,7 @@ NUM_FIT_STEPS = 3
 BAR_WIDTH = 0.45
 INITIAL_FIGURE_WIDTH = 10
 
-Unit: TypeAlias = Literal["%p", "%", "배"]
+_Unit: TypeAlias = Literal["%p", "%", "배"]
 
 plt.rcParams.update({
     "font.family": "Apple SD Gothic Neo",
@@ -56,7 +56,7 @@ plt.rcParams.update({
 
 def _format_value(
     value: float,
-    unit: Unit,
+    unit: _Unit,
 ) -> str:
     if unit in ("%p", "%"):
         percent = round(value * 100, 1)
@@ -79,7 +79,7 @@ def _annotate_value(
     x: float,
     y: float,
     text: str,
-    unit: Unit,
+    unit: _Unit,
 ) -> None:
     ymin, ymax = YLIMS[unit]
     offset = VALUE_OFFSET
@@ -100,7 +100,7 @@ def _annotate_value(
 
 def _set_yaxis(
     ax: Axes,
-    unit: Unit,
+    unit: _Unit,
 ) -> None:
     ax.set_ylim(YLIMS[unit])
     ax.yaxis.set_major_locator(MultipleLocator(YTICKS[unit]))
@@ -114,7 +114,7 @@ def plot_language_bars(
     ax: Axes,
     groups: list[str],
     values: dict[str, list[float]],
-    unit: Unit,
+    unit: _Unit,
 ) -> None:
     for language_index, language in enumerate(LANGUAGES):
         for group_index, value in enumerate(values[language]):
@@ -215,12 +215,10 @@ def _fit_bar_width(
             bar_axes.append(ax)
     if not bar_axes:
         return
-    widest_ax = bar_axes[0]
-    for ax in bar_axes:
-        if ax.get_xlim()[1] - ax.get_xlim()[0] > widest_ax.get_xlim()[1] - widest_ax.get_xlim()[0]:
-            widest_ax = ax
+    xlim_lens = [ax.get_xlim()[1] - ax.get_xlim()[0] for ax in bar_axes]
+    xlim_len = max(xlim_lens)
+    widest_ax = bar_axes[xlim_lens.index(xlim_len)]
     widest_xmin, widest_xmax = widest_ax.get_xlim()
-    xlim_len = widest_xmax - widest_xmin
     for ax in bar_axes:
         offset = widest_ax.get_xticks()[-1] - ax.get_xticks()[-1]
         ax.set_xlim(widest_xmin - offset, widest_xmax - offset)

@@ -119,15 +119,15 @@ def compute_ce_kl_loss(
 
 def train(
     weights: list[Tensor],
-    samples: list,
-    compute_losses: Callable[[list], Iterator[Tensor]],
+    samples: list[Sample],
+    compute_losses: Callable[[list[Sample]], Iterator[Tensor]],
     learning_rate: float,
     num_epochs: int,
     warmup_ratio: float,
     batch_size: int,
     checkpoint_num_trained_samples: tuple[int, ...] = (),
     save_checkpoint: Callable[[int], None] | None = None,
-    generate_batches: Callable[[list[list]], list[list]] | None = None,
+    generate_batches: Callable[[list[list[Sample]]], list[list[Sample]]] | None = None,
     num_batches_per_generation: int = 1,
 ) -> None:
     for weight in weights:

@@ -1,15 +1,15 @@
 from dataclasses import dataclass
+from functools import partial
 import re
-from statistics import mean
 
 import matplotlib.pyplot as plt
 from simple_parsing import parse
 
-from utils.dataset import LANGUAGES, load_mgsm
+from utils.dataset import load_mgsm
 from utils.hub import load_bf16_results, load_results
 from utils.path import extract_method, extract_model_name, make_result_dir
 from utils.plot import LANGUAGE_NAMES, add_language_legend, compute_figure_size, make_insert_handles, plot_insert_bars, plot_language_bars, save_figure
-from utils.score import compute_accuracy_loss_pairs
+from utils.score import compute_accuracy_loss_pairs, compute_mean_values
 
 EN_QUESTION_WINDOW_RATIO = 4
 MIN_EN_QUESTION_WORD_RATIO = 0.7
@@ -36,26 +36,16 @@ def _extract_words(
 
 
 def _compute_translation_ratio(
-    reasonings: list[str],
+    language_result: dict,
     en_questions: list[str],
 ) -> float:
     num_translations = 0
-    for reasoning, en_question in zip(reasonings, en_questions):
+    for reasoning, en_question in zip(language_result["reasonings"], en_questions):
         en_words = _extract_words(en_question)
         window_words = _extract_words(reasoning[: EN_QUESTION_WINDOW_RATIO * len(en_question)])
         if len(en_words & window_words) / len(en_words) >= MIN_EN_QUESTION_WORD_RATIO:
             num_translations += 1
-    return num_translations / len(reasonings)
-
-
-def _compute_translation_ratios(
-    all_results: list[dict[int, dict]],
-    en_questions: list[str],
-) -> dict[str, list[float]]:
-    translation_ratios = {}
-    for language in LANGUAGES:
-        translation_ratios[language] = [mean(_compute_translation_ratio(result[language]["reasonings"], en_questions) for result in results.values()) for results in all_results]
-    return translation_ratios
+    return num_translations / len(language_result["reasonings"])
 
 
 def main() -> None:
@@ -70,7 +60,7 @@ def main() -> None:
     fig, axes = plt.subplots(2, 1, figsize=compute_figure_size(2), layout="constrained")
     plot_insert_bars(axes[0], methods, compute_accuracy_loss_pairs(bf16_results, all_no_instruction_results, all_instruction_results), [])
     axes[0].set_ylabel("손실")
-    translation_ratios = _compute_translation_ratios([bf16_results] + all_instruction_results, en_questions)
+    translation_ratios = compute_mean_values([bf16_results] + all_instruction_results, partial(_compute_translation_ratio, en_questions=en_questions))
     plot_language_bars(axes[1], [NO_INSTRUCTION_NAME] + methods, translation_ratios, "%")
     axes[1].set_ylabel("번역 씀")
 

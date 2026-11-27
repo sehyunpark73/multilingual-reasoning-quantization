@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 import math
-from typing import Literal
 
 import numpy as np
 from simple_parsing import parse
@@ -8,7 +7,7 @@ import torch
 from torch import Tensor
 from torch.nn import Linear, Module
 
-from utils.dataset import load_wikipedia
+from utils.dataset import Language, load_wikipedia
 from utils.grid import compute_grid, round_to_grid
 from utils.hub import save_model
 from utils.log import log_time_and_memory
@@ -22,7 +21,7 @@ MIN_SMOOTH = 1e-4
 @dataclass
 class Config:
     model_name: str = "google/gemma-4-E2B-it"
-    calibration_languages: tuple[Literal["en", "zh", "ja", "sw", "te"], ...] = ("en",)
+    calibration_languages: tuple[Language, ...] = ("en",)
     num_bits: int = 4
     group_size: int = 128
     num_chunks: int = 128

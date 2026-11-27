@@ -48,9 +48,9 @@ def _tokenize_with_reasoning_prefixes(
 def main() -> None:
     config = parse(Config)
     model_name = extract_model_name(config.model_hub_path)
-    result_dirs = {length_ratio: make_reasoning_prefix_result_dir(length_ratio) for length_ratio in LENGTH_RATIOS}
+    result_dirs_by_ratio = {length_ratio: make_reasoning_prefix_result_dir(length_ratio) for length_ratio in LENGTH_RATIOS}
 
-    results_by_ratio = {length_ratio: load_results(result_dirs[length_ratio], config.model_hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
+    results_by_ratio = {length_ratio: load_results(result_dirs_by_ratio[length_ratio], config.model_hub_path, config.max_generation_len, config.seeds) for length_ratio in LENGTH_RATIOS}
     missing_seed_ratios = [(seed, length_ratio) for seed in config.seeds for length_ratio in LENGTH_RATIOS if not results_by_ratio[length_ratio][seed]]
     missing_seeds = []
     for seed, _ in missing_seed_ratios:
@@ -80,7 +80,7 @@ def main() -> None:
         print(f"{config.model_hub_path} seed {seed} length ratio {length_ratio} {language} accuracy {results_by_ratio[length_ratio][seed][language]['accuracy']:.2%} reasoning len {mean(generation['reasoning_lens']):.0f} inserted {len(answers)} of {len(problems[language]['prompts'])}")
 
     for seed, length_ratio in missing_seed_ratios:
-        save_result(result_dirs[length_ratio], config.model_hub_path, config.max_generation_len, seed, results_by_ratio[length_ratio][seed])
+        save_result(result_dirs_by_ratio[length_ratio], config.model_hub_path, config.max_generation_len, seed, results_by_ratio[length_ratio][seed])
 
 
 if __name__ == "__main__":

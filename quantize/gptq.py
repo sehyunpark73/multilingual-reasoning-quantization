@@ -1,11 +1,10 @@
 from dataclasses import dataclass
-from typing import Literal
 
 from simple_parsing import parse
 import torch
 from torch import Tensor
 
-from utils.dataset import load_wikipedia
+from utils.dataset import Language, load_wikipedia
 from utils.grid import compute_grid, round_to_grid
 from utils.hub import save_model
 from utils.log import log_time_and_memory
@@ -17,7 +16,7 @@ from utils.stats import compute_abs_mean_and_hessian
 @dataclass
 class Config:
     model_name: str = "google/gemma-4-E2B-it"
-    calibration_languages: tuple[Literal["en", "zh", "ja", "sw", "te"], ...] = ("en",)
+    calibration_languages: tuple[Language, ...] = ("en",)
     num_bits: int = 4
     group_size: int = 128
     num_chunks: int = 128

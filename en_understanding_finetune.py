@@ -148,8 +148,9 @@ def main() -> None:
         bf16_model = load_model(config.model_name)
 
     gsm8k_reasoning_result = load_result(config.gsm8k_reasoning_hub_path)
-    samples = _make_en_reasoning_samples(tokenizer, config.model_name, gsm8k_reasoning_result, config.train_part)[: config.num_samples]
-    print(f"{model_hub_path} samples {len(samples)}")
+    all_samples = _make_en_reasoning_samples(tokenizer, config.model_name, gsm8k_reasoning_result, config.train_part)
+    samples = all_samples[: config.num_samples]
+    print(f"{model_hub_path} samples {len(samples)} of {len(all_samples)}")
 
     with log_time(f"{model_hub_path} finetune"):
         weights = [linear.weight for linear in find_linears(model.model.language_model.layers)]

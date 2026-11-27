@@ -136,11 +136,13 @@ def compute_mean_values(
 ) -> dict[str, list[float]]:
     values = {}
     for language in LANGUAGES:
-        values[language] = [mean(compute_value(result[language]) for result in results.values()) for results in all_results]
+        values[language] = []
+        for results in all_results:
+            values[language].append(mean(compute_value(result[language]) for result in results.values()))
     return values
 
 
-def compute_subset_accuracy(
+def _compute_subset_accuracy(
     is_corrects: list[bool],
     result_problem_indices: list[int],
     problem_indices: set[int],
@@ -161,9 +163,9 @@ def compute_insert_losses(
     insert_accuracies = []
     for seed, problem_indices in problem_indices_by_seed.items():
         all_problem_indices = list(range(len(bf16_results[seed][language]["is_corrects"])))
-        bf16_accuracies.append(compute_subset_accuracy(bf16_results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
-        no_insert_accuracies.append(compute_subset_accuracy(no_insert_results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
-        insert_accuracies.append(compute_subset_accuracy(insert_results[seed][language]["is_corrects"], insert_results[seed][language]["inserted_problem_indices"], problem_indices))
+        bf16_accuracies.append(_compute_subset_accuracy(bf16_results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
+        no_insert_accuracies.append(_compute_subset_accuracy(no_insert_results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
+        insert_accuracies.append(_compute_subset_accuracy(insert_results[seed][language]["is_corrects"], insert_results[seed][language]["inserted_problem_indices"], problem_indices))
     return mean(bf16_accuracies) - mean(no_insert_accuracies), mean(bf16_accuracies) - mean(insert_accuracies)
 
 
