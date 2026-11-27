@@ -1,3 +1,7 @@
+import logging
+import os
+
+import torch
 from torch import Tensor
 from vllm import LLM, SamplingParams  # type: ignore
 from vllm.outputs import CompletionOutput, RequestOutput  # type: ignore
@@ -7,6 +11,9 @@ from utils.log import log_time
 from utils.model import MODEL_CONFIGS
 
 MAX_MODEL_LEN = 40960
+ON_POLICY_MAX_MODEL_LEN = 4096
+ON_POLICY_GPU_MEMORY_UTILIZATION = 0.25
+ON_POLICY_SLEEP_LEVEL = 1
 
 
 def _load_vllm(
@@ -15,6 +22,17 @@ def _load_vllm(
     max_num_sequences: int | None,
 ) -> LLM:
     return LLM(model_path, tokenizer=model_name, dtype="bfloat16", max_model_len=MAX_MODEL_LEN, language_model_only=True, max_num_seqs=max_num_sequences)
+
+
+def load_on_policy_vllm(
+    model_name: str,
+    seed: int,
+) -> LLM:
+    os.environ["VLLM_ENABLE_V1_MULTIPROCESSING"] = "0"
+    vllm_model = LLM(model_name, dtype="bfloat16", max_model_len=ON_POLICY_MAX_MODEL_LEN, language_model_only=True, gpu_memory_utilization=ON_POLICY_GPU_MEMORY_UTILIZATION, enable_sleep_mode=True, seed=seed)
+    vllm_model.sleep(level=ON_POLICY_SLEEP_LEVEL)
+    logging.getLogger("vllm").setLevel(logging.ERROR)
+    return vllm_model
 
 
 def _split_completion(
@@ -140,3 +158,33 @@ def continue_generation(
     with log_time(model_path):
         outputs = model.generate(token_prompts, sampling_params, use_tqdm=True)
     return _split_outputs(outputs, model.get_tokenizer(), model_name, input_ids_lists, is_reasoning_ids_returned)
+
+
+def generate_on_policy(
+    vllm_model: LLM,
+    model_name: str,
+    quantized_weights: list[tuple[str, Tensor]],
+    input_ids_list: list[Tensor],
+    max_generation_len: int,
+) -> dict:
+    vllm_model.wake_up()
+    vllm_model.collective_rpc("reload_weights", kwargs={"weights_iterator": quantized_weights})
+    vllm_model.reset_prefix_cache()
+    token_prompts = [{"prompt_token_ids": input_ids.tolist()} for input_ids in input_ids_list]
+    sampling_params = SamplingParams(**MODEL_CONFIGS[model_name]["sampling"], max_tokens=max_generation_len)
+    outputs = vllm_model.generate(token_prompts, sampling_params, use_tqdm=False)
+    vllm_model.sleep(level=ON_POLICY_SLEEP_LEVEL)
+    return _split_outputs(outputs, vllm_model.get_tokenizer(), model_name, [input_ids_list], True)[0]
+
+
+def compute_prompt_logprobs(
+    vllm_model: LLM,
+    input_ids: Tensor,
+) -> Tensor:
+    vllm_model.wake_up()
+    output = vllm_model.generate([{"prompt_token_ids": input_ids.tolist()}], SamplingParams(max_tokens=1, prompt_logprobs=0), use_tqdm=False)[0]
+    vllm_model.sleep(level=ON_POLICY_SLEEP_LEVEL)
+    logprobs = []
+    for token_id, token_logprobs in zip(input_ids.tolist()[1:], output.prompt_logprobs[1:]):
+        logprobs.append(token_logprobs[token_id].logprob)
+    return torch.tensor(logprobs)

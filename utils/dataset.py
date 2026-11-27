@@ -107,6 +107,7 @@ def load_translated_gsm8k() -> dict[str, dict[str, list]]:
         en_question = " ".join(translations["en"].split())
         translations_by_en_question[en_question] = translations
     problems = {language: {"questions": [], "prompts": [], "answers": []} for language in LANGUAGES}
+    problems["en"]["solutions"] = []
     for row in load_dataset("openai/gsm8k", "main", split="train"):
         translations = translations_by_en_question[" ".join(row["question"].split())]
         answer = int(row["answer"].split("####")[-1].replace(",", ""))
@@ -114,4 +115,5 @@ def load_translated_gsm8k() -> dict[str, dict[str, list]]:
             problems[language]["questions"].append(translations[language])
             problems[language]["prompts"].append(MGSM_PROMPTS[language].format(question=translations[language]))
             problems[language]["answers"].append(answer)
+        problems["en"]["solutions"].append(row["answer"])
     return problems

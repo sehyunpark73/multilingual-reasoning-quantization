@@ -12,6 +12,12 @@ def _format_duration(
     return f"{minutes}m{seconds:02d}s"
 
 
+def format_time_and_memory(
+    start_time: float,
+) -> str:
+    return f"time {_format_duration(time.perf_counter() - start_time)} memory {torch.cuda.max_memory_allocated() / 2**30:.1f}GB"
+
+
 @contextmanager
 def log_time(
     name: str,
@@ -28,4 +34,4 @@ def log_time_and_memory(
     start_time = time.perf_counter()
     torch.cuda.reset_peak_memory_stats()
     yield
-    print(f"{name} time {_format_duration(time.perf_counter() - start_time)} memory {torch.cuda.max_memory_allocated() / 2**30:.1f}GB")
+    print(f"{name} {format_time_and_memory(start_time)}")

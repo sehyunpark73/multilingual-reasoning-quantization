@@ -11,11 +11,11 @@ from transformers import AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
 
 from utils.dataset import NON_EN_LANGUAGES
 from utils.hub import has_model, load_result, save_model
-from utils.log import log_time_and_memory
+from utils.log import log_time
 from utils.model import MODEL_CONFIGS, find_linears, load_model
 from utils.path import make_model_hub_path
 from utils.tokenize import tokenize_prompt, tokenize_reasoning
-from utils.train import compute_ce_loss, compute_kl_loss, train
+from utils.train import Sample, compute_ce_loss, compute_kl_loss, train
 from utils.understanding import extract_understanding
 
 FINETUNE_NAME = "en_understanding_finetune"
@@ -24,7 +24,6 @@ ON_POLICY_MAX_GENERATION_LENS = {"understanding": 512, "reasoning": 2048}
 _Loss: TypeAlias = Literal["ce", "kl", "hidden"]
 _ReasoningSource: TypeAlias = Literal["bf16_en", "on_policy"]
 _TrainPart: TypeAlias = Literal["understanding", "reasoning"]
-_Sample: TypeAlias = tuple[Tensor, Tensor, Tensor]
 
 
 @dataclass
@@ -47,7 +46,7 @@ def _make_en_reasoning_samples(
     model_name: str,
     gsm8k_reasoning_result: dict,
     train_part: _TrainPart,
-) -> list[_Sample]:
+) -> list[Sample]:
     samples = []
     for problem_index, en_reasoning in enumerate(gsm8k_reasoning_result["en"]["reasonings"]):
         en_understanding = extract_understanding(en_reasoning)
@@ -72,8 +71,8 @@ def _generate_on_policy_batch(
     tokenizer: PreTrainedTokenizerBase,
     model_name: str,
     train_part: _TrainPart,
-    batch: list[_Sample],
-) -> list[_Sample]:
+    batch: list[Sample],
+) -> list[Sample]:
     sampling = MODEL_CONFIGS[model_name]["sampling"]
     inputs = tokenizer.pad({"input_ids": [prompt_ids for prompt_ids, _, _ in batch]}, padding_side="left", return_tensors="pt").to(model.device)
     with torch.autocast("cuda", dtype=torch.bfloat16):
@@ -114,7 +113,7 @@ def _compute_losses(
     loss: _Loss,
     reasoning_source: _ReasoningSource,
     train_part: _TrainPart,
-    batch: list[_Sample],
+    batch: list[Sample],
 ) -> Iterator[Tensor]:
     if reasoning_source == "on_policy":
         batch = _generate_on_policy_batch(model, tokenizer, model_name, train_part, batch)
@@ -152,7 +151,7 @@ def main() -> None:
     samples = _make_en_reasoning_samples(tokenizer, config.model_name, gsm8k_reasoning_result, config.train_part)[: config.num_samples]
     print(f"{model_hub_path} samples {len(samples)}")
 
-    with log_time_and_memory(f"{model_hub_path} finetune"):
+    with log_time(f"{model_hub_path} finetune"):
         weights = [linear.weight for linear in find_linears(model.model.language_model.layers)]
         train(weights, samples, partial(_compute_losses, model, bf16_model, tokenizer, config.model_name, config.loss, config.reasoning_source, config.train_part), config.learning_rate, config.num_epochs, config.warmup_ratio, config.batch_size)
 

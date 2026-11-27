@@ -10,15 +10,14 @@ from torch import Tensor
 from transformers import AutoTokenizer, PreTrainedModel, set_seed
 
 from utils.hub import has_model, load_result, save_model
-from utils.log import log_time_and_memory
+from utils.log import log_time
 from utils.model import find_linears, load_model
 from utils.path import make_model_hub_path
-from utils.train import compute_ce_kl_loss, compute_ce_loss, make_en_question_samples, train
+from utils.train import Sample, compute_ce_kl_loss, compute_ce_loss, make_en_question_samples, train
 
 FINETUNE_NAME = "question_finetune"
 
 _Loss: TypeAlias = Literal["ce", "ce_kl"]
-_Sample: TypeAlias = tuple[Tensor, Tensor, Tensor]
 
 
 @dataclass
@@ -39,7 +38,7 @@ def _compute_losses(
     model: PreTrainedModel,
     bf16_model: PreTrainedModel | None,
     loss: _Loss,
-    batch: list[_Sample],
+    batch: list[Sample],
 ) -> Iterator[Tensor]:
     num_en_question_tokens = sum(len(en_question_ids) for _, en_question_ids, _ in batch)
     num_reasoning_tokens = sum(len(reasoning_ids) for _, _, reasoning_ids in batch)
@@ -92,7 +91,7 @@ def main() -> None:
     samples = random.sample(all_samples, config.num_samples)
     print(f"{model_hub_path} samples {len(samples)} of {len(all_samples)}")
 
-    with log_time_and_memory(f"{model_hub_path} finetune"):
+    with log_time(f"{model_hub_path} finetune"):
         weights = [linear.weight for linear in find_linears(model.model.language_model.layers)]
         save_checkpoint = partial(_save_checkpoint, model, weights, config.model_name, config.loss, config.num_samples)
         train(weights, samples, partial(_compute_losses, model, bf16_model, config.loss), config.learning_rate, config.num_epochs, config.warmup_ratio, config.batch_size, config.checkpoint_num_trained_samples + (num_trained_samples,), save_checkpoint)

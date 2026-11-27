@@ -5,7 +5,7 @@ import torch
 
 from utils.hub import download_model, save_model
 from utils.model import find_linears, load_model
-from utils.path import make_model_hub_path
+from utils.path import make_model_hub_path, make_quantized_finetune_model_hub_path
 from utils.quantize import quantize_mxfp4
 
 
@@ -23,8 +23,7 @@ def main() -> None:
         model_hub_path = make_model_hub_path("mxfp4", config.model_name)
     else:
         model = load_model(download_model(config.finetune_model_hub_path))
-        finetune_name, model_name_and_settings = config.finetune_model_hub_path.split("/", 1)
-        model_hub_path = f"{finetune_name}_mxfp4/{model_name_and_settings}"
+        model_hub_path = make_quantized_finetune_model_hub_path(config.finetune_model_hub_path, "mxfp4")
     for linear in find_linears(model.model.language_model.layers):
         linear.weight.copy_(quantize_mxfp4(linear.weight))
     save_model(model_hub_path, model)

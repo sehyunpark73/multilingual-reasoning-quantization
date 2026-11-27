@@ -13,6 +13,14 @@ def make_model_hub_path(
     return f"{method}/{model_name}/{settings_text}"
 
 
+def make_quantized_finetune_model_hub_path(
+    finetune_model_hub_path: str,
+    method: str,
+) -> str:
+    finetune_name, model_name_and_settings = finetune_model_hub_path.split("/", 1)
+    return f"{finetune_name}_{method}/{model_name_and_settings}"
+
+
 def extract_model_name(
     model_hub_path: str,
 ) -> str:
