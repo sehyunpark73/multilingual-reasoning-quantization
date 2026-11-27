@@ -73,6 +73,22 @@ def find_solved_problem_indices(
     return solved_problem_indices
 
 
+def split_solved_problem_indices(
+    bf16_results: dict[int, dict],
+) -> tuple[dict[str, dict[int, set[int]]], dict[str, dict[int, set[int]]]]:
+    solved_problem_indices_by_language = {}
+    unsolved_problem_indices_by_language = {}
+    for language in LANGUAGES:
+        solved_problem_indices_by_language[language] = {}
+        unsolved_problem_indices_by_language[language] = {}
+        for seed, bf16_result in bf16_results.items():
+            other_bf16_results = {other_seed: other_bf16_result for other_seed, other_bf16_result in bf16_results.items() if other_seed != seed}
+            solved_problem_indices = set(find_solved_problem_indices(other_bf16_results, language))
+            solved_problem_indices_by_language[language][seed] = solved_problem_indices
+            unsolved_problem_indices_by_language[language][seed] = set(range(len(bf16_result[language]["is_corrects"]))) - solved_problem_indices
+    return solved_problem_indices_by_language, unsolved_problem_indices_by_language
+
+
 def _compute_mean_accuracy(
     results: dict[int, dict],
     language: str,
@@ -149,6 +165,24 @@ def _compute_subset_accuracy(
 ) -> float:
     subset_is_corrects = [is_correct for problem_index, is_correct in zip(result_problem_indices, is_corrects) if problem_index in problem_indices]
     return sum(subset_is_corrects) / len(subset_is_corrects)
+
+
+def compute_subset_accuracy_losses(
+    bf16_results: dict[int, dict],
+    all_results: list[dict[int, dict]],
+    problem_indices_by_language: dict[str, dict[int, set[int]]],
+) -> dict[str, list[float]]:
+    losses = {}
+    for language in LANGUAGES:
+        losses[language] = []
+        for results in all_results:
+            seed_losses = []
+            for seed, problem_indices in problem_indices_by_language[language].items():
+                all_problem_indices = list(range(len(bf16_results[seed][language]["is_corrects"])))
+                bf16_accuracy = _compute_subset_accuracy(bf16_results[seed][language]["is_corrects"], all_problem_indices, problem_indices)
+                seed_losses.append(bf16_accuracy - _compute_subset_accuracy(results[seed][language]["is_corrects"], all_problem_indices, problem_indices))
+            losses[language].append(mean(seed_losses))
+    return losses
 
 
 def compute_insert_losses(

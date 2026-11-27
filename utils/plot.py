@@ -188,6 +188,18 @@ def make_problem_count_labels(
     return labels
 
 
+def make_solved_count_labels(
+    solved_problem_indices_by_language: dict[str, dict[int, set[int]]],
+    unsolved_problem_indices_by_language: dict[str, dict[int, set[int]]],
+) -> dict[str, str]:
+    labels = {}
+    for language in LANGUAGES:
+        num_solved_problems = round(mean(len(problem_indices) for problem_indices in solved_problem_indices_by_language[language].values()))
+        num_unsolved_problems = round(mean(len(problem_indices) for problem_indices in unsolved_problem_indices_by_language[language].values()))
+        labels[language] = f"{LANGUAGE_NAMES[language]} {num_solved_problems}·{num_unsolved_problems}문제"
+    return labels
+
+
 def compute_figure_size(
     num_rows: int,
     width: float = INITIAL_FIGURE_WIDTH,
