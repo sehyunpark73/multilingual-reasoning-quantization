@@ -5,10 +5,9 @@ from simple_parsing import parse
 
 from utils.hub import load_bf16_results, load_results
 from utils.path import extract_method, extract_model_name, make_result_dir
-from utils.plot import GROUP_WIDTH, LANGUAGE_NAMES, add_language_legend, compute_figure_size, make_insert_handles, plot_insert_bars, save_figure
+from utils.plot import LANGUAGE_NAMES, add_language_legend, compute_figure_size, make_insert_handles, plot_insert_bars, save_figure, set_group_xlim
 from utils.score import compute_accuracy_loss_pairs
 
-NUM_GROUP_SLOTS = 5
 FIGURE_WIDTH = 15
 
 
@@ -33,8 +32,7 @@ def main() -> None:
     fig, ax = plt.subplots(figsize=compute_figure_size(1, FIGURE_WIDTH), layout="constrained")
     plot_insert_bars(ax, methods, compute_accuracy_loss_pairs(bf16_results, all_no_insert_results, all_insert_results), [])
     ax.set_ylabel("손실")
-    center = (len(methods) - 1) * GROUP_WIDTH / 2
-    ax.set_xlim(center - NUM_GROUP_SLOTS * GROUP_WIDTH / 2, center + NUM_GROUP_SLOTS * GROUP_WIDTH / 2)
+    set_group_xlim(ax, len(methods))
 
     fig.suptitle("bf16 번역 삽입")
     add_language_legend(fig, LANGUAGE_NAMES, make_insert_handles("삽입 없음", "삽입"))

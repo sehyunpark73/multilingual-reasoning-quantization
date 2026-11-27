@@ -27,6 +27,7 @@ POSITION_LABELS = ["0~20%", "20~40%", "40~60%", "60~80%", "80~100%"]
 PANEL_HEIGHT = 1.9
 FIGURE_HEIGHT_MARGIN = 1.6
 NUM_FIT_STEPS = 3
+NUM_GROUP_SLOTS = 5
 
 Unit: TypeAlias = Literal["%p", "%", "배"]
 
@@ -147,6 +148,15 @@ def plot_insert_bars(
     ax.axhline(0, color=BASELINE_COLOR, linewidth=BASELINE_WIDTH)
     ax.set_xticks([group_index * GROUP_WIDTH for group_index in range(len(groups))], groups)
     _set_yaxis(ax, "%p")
+
+
+def set_group_xlim(
+    ax: Axes,
+    num_groups: int,
+) -> None:
+    num_group_slots = max(num_groups, NUM_GROUP_SLOTS)
+    center = (num_groups - 1) * GROUP_WIDTH / 2
+    ax.set_xlim(center - num_group_slots * GROUP_WIDTH / 2, center + num_group_slots * GROUP_WIDTH / 2)
 
 
 def make_insert_handles(
