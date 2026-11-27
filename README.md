@@ -3,7 +3,7 @@
 ## 요약
 - Gemma MGSM에서는 양자화하면 reasoning에서도 영어, 중자원 언어, 저자원 언어 순으로 더 많이 잃고, 적어도 MXFP4에서는 이 손실이 주로 question을 영어로 옮겨 이해하는 reasoning 앞부분에서 생기는 것으로 보인다.
 - Reasoning 시작에 영어 question을 삽입하면 양자화 모델도 영어 외 모든 언어에서 BF16을 넘는다.
-- **영어 question과 그 뒤 reasoning을 함께 맞추는 CE_KL QAT로, 삽입 없이도 MXFP4가 영어 외 모든 언어에서 BF16을 넘는다.**
+- **Reasoning 시작에 영어 question을 먼저 쓰도록 QAT하면, 양자화 후에도 영어 외 모든 언어에서 BF16을 넘고, 양자화 회복을 위한 QAD보다 낫다.**
 
 ## 배경
 대부분의 LLM은 영어 위주의 데이터로 사전학습된다는 점에서, 한국인인 내가 손해를 보고 있는 게 아닐까 하는 단순한 생각에서 이 프로젝트를 시작했다. 이를 우선 가볍게 살펴보고자 다국어 양자화를 다룬 최신 논문 [The Multilingual Quantization Tax](https://arxiv.org/abs/2608.09941)를 읽어 보았는데, 이 논문도 나와 같은 문제를 보았고, 기대대로 저자원 언어가 양자화로 더 크게 잃는다고 말한다. 다만 이 논문은 reasoning을 다루지 않았고 양자화 방법도 하나뿐이라([관련 연구](#관련-연구)), 같은 Gemma와 Qwen에서 thinking mode를 켜고 여러 양자화 방법으로 이를 제대로 확인하고, 손실이 어디서 생기며 어떻게 줄일 수 있는지 방법론까지 살펴본다.
@@ -18,6 +18,17 @@
 - BF16에서 reasoning 시작에 영어 question을 삽입하면 언어 간 차이가 대부분 사라진다고 보고한다.
 - 그러나 양자화 모델은 보지 않았다.
 - 이 프로젝트는 같은 방법을 양자화 모델에 적용하고, 삽입 없이 학습으로도 되는지 본다.
+#### [Quantization-Aware Distillation for NVFP4 Inference Accuracy Recovery](https://arxiv.org/abs/2601.20088)
+- NVFP4 양자화 모델을 BF16에 KL로 맞추는 QAD가 QAT보다 BF16 정확도를 잘 회복한다고 보고한다.
+- 이 프로젝트는 QAD를 대조군으로 두고 비교한다.
+#### [Align to the Pivot: Dual Alignment with Self-Feedback for Multilingual Math Reasoning](https://arxiv.org/abs/2601.17671)
+- 같은 언어 question을 받아 영어 question을 먼저 쓰고 답하도록 학습하는 PAM과 강화학습으로 다국어 수학 추론이 오른다고 보고한다.
+- 그러나 양자화 및 추론 모델은 보지 않았다.
+- 이 프로젝트는 같은 생각을 양자화 모델의 reasoning에 적용하고, PAM을 대조군으로 두고 비교한다.
+#### [Crosslingual On-Policy Self-Distillation for Multilingual Reasoning](https://arxiv.org/abs/2605.09548)
+- 영어 번역과 정답 풀이를 받은 자신을 teacher로 삼는 on-policy self-distillation으로 저자원 언어 수학 추론이 오른다고 보고한다.
+- 그러나 양자화 모델은 보지 않았고, 영어 정보는 teacher만 받는다.
+- 이 프로젝트는 COPSD를 대조군으로 두고 비교한다.
 
 ## 실험
 <details><summary>공통 설정</summary>
@@ -31,7 +42,8 @@
 #### 모델
 - Qwen3.5-2B와 Gemma-4-E2B-it을 thinking mode를 켜고 BF16과 비교한다.
 - Language model layer의 linear weight만 4 bit로 양자화한다.
-- 양자화 방법은 GPTQ, AWQ, NF4, MXFP4이고, group size는 GPTQ와 AWQ 128, NF4 64, MXFP4 32다.
+- 양자화 방법은 GPTQ, AWQ, NF4, MXFP4, NVFP4이고, group size는 GPTQ와 AWQ 128, NF4 64, MXFP4 32, NVFP4 16이다.
+- MXFP4와 NVFP4는 weight를 같은 FP4(E2M1) 값으로 나타내지만, MXFP4는 group마다 2의 거듭제곱 scale을, NVFP4는 group마다 FP8(E4M3) scale과 tensor마다 FP32 scale을 쓴다.
 - GPTQ와 AWQ는 영어 Wikipedia 2048 token chunk 128개로 calibration한다.
 #### 생성
 - vLLM 0.30.0, temperature 1.0, top-p 0.95다.
@@ -165,7 +177,7 @@
 > 그렇다면 이 능력을 학습시키기 위해, 우선 양자화 손실과 섞이지 않게 BF16을 finetune해 확인한다.
 > 영어 외 언어 prompt 뒤의 understanding이나 reasoning이, 영어 prompt를 받은 BF16의 것과 같아지도록 finetune한다.
 - **Understanding을 맞추는 finetune은 모두 영어 외 언어에서 오히려 BF16보다 잃는다.**
-- Reasoning 전체를 맞추는 대조군 KL on policy reasoning이 가장 좋다.
+- Reasoning 전체를 맞추는 대조군 KL on-policy reasoning이 가장 좋다.
 - 의아한 결과지만, 생각해 보면 understanding은 Gemma가 생성한 reasoning의 일부라, 우리가 학습시키려는 번역해 이해하는 부분보다 Gemma의 문체가 훨씬 많은 것이 문제일 수 있다.
 - 따라서 이해 능력만 학습하려 해도 그 학습 신호가 적어 잘 학습되지 않을 수 있다.
 <details><summary>그림 및 설정</summary>
@@ -176,7 +188,7 @@
 - KL은 같은 text를 영어 prompt 뒤에 받은 BF16의 다음 token 예측에 맞춘다.
 - Hidden은 같은 text를 영어 prompt 뒤에 받은 BF16의 layer마다 hidden에 cosine 유사도로 맞춘다.
 - BF16 영어 understanding은 BF16이 영어 prompt에 쓴 understanding이다.
-- On policy는 finetune 중인 모델이 같은 언어 prompt에 쓴 understanding이나 reasoning이다.
+- On-policy는 finetune 중인 모델이 같은 언어 prompt에 쓴 understanding이나 reasoning이다.
 - 학습 데이터는 GSM8K train 4000개로, BF16이 영어와 같은 언어로 모두 맞힌 문제만 쓴다.
 </details>
 
@@ -213,6 +225,7 @@
 - CE는 learning rate warmup 중인 800 sample에서 이미 무너져 800 sample만 평가했다.
 - 29492 sample은 학습 데이터를 모두 finetune한 것이다.
 - Reasoning 길이는 언어마다 reasoning token 수 중앙값의 BF16 대비 배다.
+- 영어 question을 reasoning에 넣는 것은 [Why do multilingual reasoning gaps emerge in reasoning language models](https://arxiv.org/abs/2510.27269)의 삽입과, 이를 먼저 쓰게 학습하는 것은 [PASMR](https://arxiv.org/abs/2601.17671)의 PAM과 같은 방식이다.
 </details>
 
 ### QAT
@@ -232,9 +245,33 @@
 - CE_KL QAT 학습 데이터는 영어 question finetune의 20000개와 같다.
 </details>
 
+### QAT 비교 (ongoing)
+> 앞에서 CE_KL QAT는 Gemma MXFP4에서 삽입 없이도 영어 외 모든 언어에서 BF16을 넘었다.
+> 그렇다면 다른 모델과 다른 양자화 방법에서도 그런지, 그리고 대조군들보다도 나은지 확인한다.
+> Gemma와 Qwen의 MXFP4와 NVFP4에서 CE_KL QAT와 이를 on-policy로 바꾼 CE_OPD QAT를 대조군 PAM, QAD, COPSD, OPD QAT와 MGSM, MMLU-ProX-Lite에서 비교한다.
+- 영어 question 없이 BF16에 맞추는 QAD와 OPD, BF16에만 영어 question과 정답 풀이를 주는 COPSD는 MGSM에서 BF16을 넘지 못한다.
+- **반면 영어 question을 직접 쓰도록 학습하는 CE_KL과 PAM은 MGSM 영어 외 모든 언어에서 BF16을 넘는다.**
+- On-policy는 추가 성능을 특히 보이지는 않고(CE_OPD는 일본어와 텔루구어에서 BF16을 넘지 못한다), 또한 전문 지식 문제(MMLU-ProX-Lite)에서 더 잃는다.
+- 한편 CE_KL, QAD, PAM은 MMLU-ProX-Lite에서 대체로 NVFP4와 비슷하게 잃는다.
+- 따라서 적어도 Gemma NVFP4에서는 영어 question을 직접 쓰게 하는 것이 BF16을 넘는 핵심으로 보인다. 그 뒤 reasoning을 CE(PAM)으로 맞추든 KL로 맞추든 딱히 차이를 보이지는 않는다.
+<details><summary>그림 및 설정</summary>
+
+![](figures/gemma-4-E2B-it/qat_comparison_mgsm.png)
+![](figures/gemma-4-E2B-it/qat_comparison_mmlu_prox_lite.png)
+- 지금은 Gemma NVFP4 결과만 있다.
+- 모든 방법은 QAT와 같은 방식으로 GSM8K train에서 무작위로 고른 20000개를 학습한다.
+- PAM은 [PASMR](https://arxiv.org/abs/2601.17671)의 첫 단계로, CE_KL QAT와 같은 데이터에서 영어 question과 그 뒤 reasoning을 모두 CE로 맞춘다. CE_KL과 달리 reasoning을 BF16의 분포 대신 BF16이 쓴 token에 맞추고, 영어 question과 reasoning token을 합쳐 평균해 영어 question의 비중이 작다.
+- 원 논문은 thinking mode가 없는 모델이 영어 question 뒤에 같은 언어로 답하게 하고, 그 답은 다른 모델이 쓴 것을 번역해 쓴다. 여기서는 CE_KL처럼 BF16이 영어 question 삽입 뒤에 쓴 reasoning을 쓴다.
+- QAD는 [QAT](#qat)의 KL QAT와 같다.
+- CE_OPD는 CE_KL QAT에서 영어 question 뒤 reasoning을 학습 중인 양자화 모델이 직접 이어 쓰게 한 것이다.
+- COPSD는 학습 중인 양자화 모델이 같은 언어 prompt에 쓴 reasoning을, 같은 언어 prompt 뒤에 영어 question과 GSM8K 영어 정답 풀이를 붙여 받은 BF16에 KL로 맞춘다.
+- BF16이 받는 prompt는 원 논문 Figure 18의 순서를 따르되, label과 안내 문장은 영어로 줄여 썼다.
+- 원 논문과 달리 LoRA 대신 QAT로 학습하고, 평가 입력과 맞추려고 reasoning 언어를 정하는 prefix와 같은 언어로 풀라는 안내는 넣지 않았으며, 답은 `\boxed{}` 대신 원래 문제의 형식을 따르게 했다.
+- OPD는 COPSD에서 BF16도 같은 언어 prompt만 받게 한 것이다.
+- CE_OPD, COPSD, OPD는 batch마다 생성하면 너무 오래 걸려 8 batch마다 학습 중인 weight로 최대 2048 token까지 한 번에 생성하고, COPSD 원 코드대로 token마다 KL을 0.05에서 자른다.
+</details>
+
 ## 한계와 할 것
-- 언어별 손실 뒤 실험은 Gemma MGSM만 써서, 다른 benchmark와 다른 모델에서도 같은 결과가 나오는지 확인한다.
-- 다국어 reasoning이나 양자화 회복을 다룬 다른 방법을 대조군으로 두고 CE_KL QAT와 비교한다.
-  - [Crosslingual On-Policy Self-Distillation for Multilingual Reasoning (COPSD)](https://arxiv.org/abs/2605.09548)
-  - [Language-Conditional Dequantization: Recovering What Quantization Steals from Non-English Languages](https://arxiv.org/abs/2608.11786)
-  - [Align to the Pivot: Dual Alignment with Self-Feedback for Multilingual Math Reasoning (PASMR)](https://arxiv.org/abs/2601.17671)
+- 대부분 실험은 Gemma만 써서, 다른 모델과 다른 benchmark에서도 확인할 필요가 있다. 다만 계산 자원이 제한적이라 쉽지 않다.
+- QAT 비교는 MXFP4와 Qwen에서도 확인해야 한다. 이 역시 계산 자원이 제한적이라 당분간 미룬다.
+- 영어 question을 reasoning 시작에 넣는 생각은 관련 연구의 삽입(Why do)과 PAM에 이미 있다. 여기서 쓴 CE_KL도 PAM과 거의 같아(주된 차이는 reasoning을 CE 대신 KL로 맞추는 것), 성능 차이를 드러내지 못했다.
