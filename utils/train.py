@@ -71,6 +71,17 @@ def compute_ce_loss(
     return cross_entropy(logits, text_ids.to(logits.device), reduction="sum")
 
 
+def _compute_kl_sum(
+    bf16_logits: Tensor,
+    logits: Tensor,
+    max_token_kl: float | None,
+) -> Tensor:
+    kls = compute_kls(bf16_logits, logits)
+    if max_token_kl is not None:
+        kls = kls.clamp(max=max_token_kl)
+    return kls.sum()
+
+
 def compute_kl_loss(
     model: PreTrainedModel,
     bf16_model: PreTrainedModel,
@@ -83,10 +94,7 @@ def compute_kl_loss(
         bf16_logits = compute_logits(bf16_model, forward_reasoning_hiddens(bf16_model, torch.cat([bf16_prompt_ids, text_ids]), len(bf16_prompt_ids)))
     with torch.autocast("cuda", dtype=torch.bfloat16):
         logits = compute_logits(model, forward_reasoning_hiddens(model, torch.cat([prompt_ids, text_ids]), len(prompt_ids)))
-    kls = compute_kls(bf16_logits, logits)
-    if max_token_kl is not None:
-        kls = kls.clamp(max=max_token_kl)
-    return kls.sum()
+    return _compute_kl_sum(bf16_logits, logits, max_token_kl)
 
 
 def compute_ce_kl_loss(
@@ -99,9 +107,13 @@ def compute_ce_kl_loss(
     num_reasoning_tokens: int,
     max_token_kl: float | None = None,
 ) -> Tensor:
-    prompt_and_en_question_ids = torch.cat([prompt_ids, en_question_ids])
-    ce_loss = compute_ce_loss(model, prompt_ids, en_question_ids) / num_en_question_tokens
-    kl_loss = compute_kl_loss(model, bf16_model, prompt_and_en_question_ids, prompt_and_en_question_ids, reasoning_ids, max_token_kl=max_token_kl) / num_reasoning_tokens
+    input_ids = torch.cat([prompt_ids, en_question_ids, reasoning_ids])
+    with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+        bf16_logits = compute_logits(bf16_model, forward_reasoning_hiddens(bf16_model, input_ids, len(prompt_ids) + len(en_question_ids)))
+    with torch.autocast("cuda", dtype=torch.bfloat16):
+        logits = compute_logits(model, forward_reasoning_hiddens(model, input_ids, len(prompt_ids)))
+    ce_loss = cross_entropy(logits[: len(en_question_ids)], en_question_ids.to(logits.device), reduction="sum") / num_en_question_tokens
+    kl_loss = _compute_kl_sum(bf16_logits, logits[len(en_question_ids) :], max_token_kl) / num_reasoning_tokens
     return ce_loss + kl_loss
 
 
