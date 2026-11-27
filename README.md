@@ -37,6 +37,7 @@
 - BF16은 양자화하지 않은 원래 모델이다.
 - Prompt는 instruction과 question, reasoning은 thinking mode에서 쓴 text, response는 reasoning 뒤 text다.
 - 손실은 삽입 없는 BF16의 같은 언어 정확도에서 정확도를 뺀 값이다.
+- BF16이 푼 문제는 seed마다 나머지 두 seed에서 BF16이 모두 맞힌 문제, 못 푼 문제는 하나라도 틀린 문제이고, 손실은 seed마다 구해 평균한다.
 - 잘림은 최대 생성 길이에 닿고 틀린 문제다.
 - 반복은 reasoning이나 response 끝에서 200~150번째 글자 50개가 그 앞에 5번 이상 나오는 문제다.
 #### 모델
@@ -236,7 +237,8 @@
 - CE_KL finetune을 그대로 MXFP4로 양자화하면 모든 언어에서 다시 잃는다.
 - 대조군 KL QAT는 MXFP4 손실을 대부분 회복하지만 BF16을 넘지 못한다.
 - **CE_KL QAT는 삽입 없이도 영어 외 모든 언어에서 BF16을 넘는다.**
-- 따라서 양자화 모델이 BF16을 넘는 것은 손실을 회복해서가 아니라 영어 question을 쓰도록 학습한 덕분이다.
+- BF16이 푼 문제에서는 KL QAT와 CE_KL QAT가 비슷하게 손실을 되찾지만, BF16이 못 푼 문제에서는 CE_KL QAT만 BF16보다 크게 더 맞힌다.
+- 따라서 양자화 손실은 BF16에 맞추는 것만으로도 회복되고, BF16을 넘는 몫은 BF16도 못 푸는 문제를 영어 question을 쓰도록 학습해 풀게 된 덕분이다.
 <details><summary>그림 및 설정</summary>
 
 ![](figures/gemma-4-E2B-it/qat.png)
@@ -251,7 +253,8 @@
 > Gemma와 Qwen의 MXFP4와 NVFP4에서 CE_KL QAT와 이를 on-policy로 바꾼 CE_OPD QAT를 대조군 PAM, QAD, COPSD, OPD QAT와 MGSM, MMLU-ProX-Lite에서 비교한다.
 - 영어 question 없이 BF16에 맞추는 QAD와 OPD, BF16에만 영어 question과 정답 풀이를 주는 COPSD는 MGSM에서 BF16을 넘지 못한다.
 - **반면 영어 question을 직접 쓰도록 학습하는 CE_KL과 PAM은 MGSM 영어 외 모든 언어에서 BF16을 넘는다.**
-- On-policy는 추가 성능을 특히 보이지는 않고(CE_OPD는 일본어와 텔루구어에서 BF16을 넘지 못한다), 또한 전문 지식 문제(MMLU-ProX-Lite)에서 더 잃는다.
+- BF16이 푼 문제는 모든 방법이 비슷하게 되찾지만, BF16이 못 푼 문제는 영어 question을 쓰는 CE_KL, PAM, CE_OPD만 효과적이다.
+- On-policy는 추가 성능을 보이지는 않고, 또한 MMLU-ProX-Lite에서 더 잃는다.
 - 한편 CE_KL, QAD, PAM은 MMLU-ProX-Lite에서 대체로 NVFP4와 비슷하게 잃는다.
 - 따라서 적어도 Gemma NVFP4에서는 영어 question을 직접 쓰게 하는 것이 BF16을 넘는 핵심으로 보인다. 그 뒤 reasoning을 CE(PAM)으로 맞추든 KL로 맞추든 딱히 차이를 보이지는 않는다.
 <details><summary>그림 및 설정</summary>
