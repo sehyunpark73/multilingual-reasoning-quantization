@@ -8,7 +8,7 @@ from utils.path import extract_model_name, make_result_dir
 from utils.plot import LANGUAGE_NAMES, add_language_legend, compute_figure_size, plot_language_bars, save_figure
 from utils.score import compute_accuracy_losses
 
-FINETUNE_NAMES = ["ce\nbf16 영어 understanding", "kl\nbf16 영어 understanding", "kl\non policy understanding", "kl\non policy reasoning", "hidden\non policy understanding"]
+FINETUNE_NAMES = ["ce\nbf16 영어 understanding", "kl\nbf16 영어 understanding", "kl\non-policy understanding", "kl\non-policy reasoning", "hidden\non-policy understanding"]
 
 
 @dataclass
